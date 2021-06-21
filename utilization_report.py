@@ -33,7 +33,8 @@ hrs_per_day = 24
 
 su_per_core_hour = 1
 su_per_gpu_hour = 43
-su_per_tib_hour = 68
+#su_per_tib_hour = 68
+su_per_tib_hour = 50.2
 
 num_def_nodes = 74
 def_nodes_cores_per_node = 48
@@ -74,7 +75,7 @@ def su_days_bigmem(n_days):
     return num_bm_nodes * bm_nodes_mem_per_node * n_days * hrs_per_day * su_per_tib_hour / mib_to_tib
 
 
-def main():
+def manual_utilization():
     global debug_p
     global rate
     global num_def_nodes
@@ -116,7 +117,7 @@ def main():
 
         print(f'{total_sus_utilized:50.6e} utilized SUs')
         print(f'                                      -------------------------')
-        print(f'                                      Utilization = {total_sus_utilized/total_sus*100.:5.2f}%')
+        print(f'                                      Utilization = {total_sus_utilized/total_sus*100.:5.2f} %')
 
     print('')
     print(f'TOTAL AVAILABLE SUs: {overall_sus:12.6e}')
@@ -124,6 +125,61 @@ def main():
     print(f'                     ------------')
     print(f'       UTILIZATION:  {overall_utilized_sus/overall_sus*100.:5.2f}%')
 
+
+def sreport_utilization():
+    global debug_p
+    global rate
+    global num_def_nodes
+    global def_nodes_cores_per_node
+    global num_gpu_nodes
+    global gpu_nodes_gpus_per_node
+    global num_bm_nodes
+    global bm_nodes_mem_per_node
+
+    # sreport -n -P -T billing ...
+    # Cluster|TRES Name|Allocated|Down|PLND Down|Idle|Reserved|Reported
+    # picotte|billing|13033854|1879748|0|227783998|0|242697600
+
+    year = 2021
+    months = [2, 3, 4, 5]
+
+    overall_sus = 0.
+    overall_utilized_sus = 0.
+    for month in months:
+        n_days = calendar.monthrange(year, month)[1]
+        date = datetime.date(year, month, 1)
+        date_str = date.strftime('%b %Y')
+        print(f'{date_str} ({n_days} days)')
+        command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={year}-{month:02}-{n_days:02}'.split(' ')
+        sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
+        alloc_su = float(sreport[2]) / 60.
+        down_su = float(sreport[3]) / 60.
+        planned_down_su = float(sreport[4]) / 60.
+        total_down_su = down_su + planned_down_su
+        idle_su = float(sreport[5]) / 60.
+        reserved_su = float(sreport[6]) / 60.
+        total_su = float(sreport[7]) / 60.
+
+        overall_utilized_sus += alloc_su
+        overall_sus += total_su
+
+        print(f'Total SUs:     {total_su:9.6e}')
+        print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
+        print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
+        print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
+        print('')
+
+    print(f'TOTAL AVAILBLE SUs:    {overall_sus:9.6e}')
+    print(f'TOTAL UTILIZED SUs:    {overall_utilized_sus:9.6e}')
+    print( '                       -----------')
+    print(f'UTILIZATION:           {overall_utilized_sus / overall_sus * 100.:5.2f} %')
+
+def main():
+    global debug_p
+
+    manual_utilization()
+    print('')
+    sreport_utilization()
 
 if __name__ == '__main__':
     main()
