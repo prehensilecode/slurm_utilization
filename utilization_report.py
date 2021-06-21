@@ -20,6 +20,7 @@ import os
 import subprocess
 import decimal
 from decimal import Decimal
+import datetime
 import calendar
 import delorean
 
@@ -86,18 +87,42 @@ def main():
     year = 2021
     months = [2, 3, 4, 5]
 
+    print('Utilization by SUs')
+    print('------------------')
+    print('')
+    overall_sus = 0.
+    overall_utilized_sus = 0.
     for month in months:
         n_days = calendar.monthrange(year, month)[1]
-        print(f'{n_days} days in {year}-{month:02d}')
+        date = datetime.date(year, month, 1)
+        date_str = date.strftime('%b %Y')
+        print(f'{date_str} ({n_days} days)')
         def_sus = su_days_def(n_days)
-        print(f'{def_sus:8.6e} std. SUs in {year}-{month:02d}')
+        print(f'{def_sus:8.6e} std. SUs')
         gpu_sus = su_days_gpu(n_days)
-        print(f'{gpu_sus:8.6e} GPU SUs in {year}-{month:02d}')
+        print(f'{gpu_sus:8.6e} GPU SUs')
         bm_sus = su_days_bigmem(n_days)
-        print(f'{bm_sus:8.6e} bigmem SUs in {year}-{month:02d}')
+        print(f'{bm_sus:8.6e} bigmem SUs')
 
-        print(f'{def_sus + gpu_sus + bm_sus:50.6e} total SUs')
-        print('')
+        total_sus = def_sus + gpu_sus + bm_sus
+        overall_sus += total_sus
+        print(f'{total_sus:50.6e} total SUs')
+
+        command = f'sreport -n -P cluster AccountUtilizationByUser Account=root Tree Start={year}-{month:02}-01 End={year}-{month:02}-{n_days:02} -T billing'.split(' ')
+        sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('\n')
+
+        total_sus_utilized = float(sreport[0].split('|')[5]) / 60.
+        overall_utilized_sus += total_sus_utilized
+
+        print(f'{total_sus_utilized:50.6e} utilized SUs')
+        print(f'                                      -------------------------')
+        print(f'                                      Utilization = {total_sus_utilized/total_sus*100.:5.2f}%')
+
+    print('')
+    print(f'TOTAL AVAILABLE SUs: {overall_sus:12.6e}')
+    print(f'TOTAL UTILIZED SUs:  {overall_utilized_sus:12.6e}')
+    print(f'                     ------------')
+    print(f'       UTILIZATION:  {overall_utilized_sus/overall_sus*100.:5.2f}%')
 
 
 if __name__ == '__main__':
