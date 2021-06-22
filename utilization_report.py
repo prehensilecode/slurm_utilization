@@ -127,7 +127,7 @@ def manual_utilization():
     print(f'       UTILIZATION:  {overall_utilized_sus/overall_sus*100.:5.2f}%')
 
 
-def sreport_utilization_fy(year=None, output_p=True):
+def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
     global debug_p
 
     # cumulative utilization for current FY
@@ -168,7 +168,7 @@ def sreport_utilization_fy(year=None, output_p=True):
         print('')
 
 
-def sreport_utilization(year, month, output_p=True):
+def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
     global debug_p
     global rate
     global num_def_nodes
@@ -229,9 +229,16 @@ def main():
                         help='Date for reporting in format YYYY-MM (default: current year-month')
     parser.add_argument('-c', '--cumulative', action='store_true',
                         help='Show cumulative utilization for current fiscal year (default: False)')
+    parser.add_argument('-p', '--pretty-print', action='store_true',
+                        help='Output in HTML')
     args = parser.parse_args()
 
     debug_p = args.debug
+
+    if debug_p:
+        print('DEBUG: args =', args)
+    
+    commission_date = datetime.datetime(2021, 2, 1) 
 
     year = 0
     month = 1
@@ -244,10 +251,11 @@ def main():
 
     # manual_utilization()
     # print('')
+
     sreport_utilization(year, month)
 
     if args.cumulative:
-        sreport_utilization_fy()
+        sreport_utilization_fy(year)
 
 
 
