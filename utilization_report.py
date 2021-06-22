@@ -22,7 +22,8 @@ import decimal
 from decimal import Decimal
 import datetime
 import calendar
-import delorean
+import fiscalyear
+import argparse
 
 
 debug_p = True
@@ -126,7 +127,48 @@ def manual_utilization():
     print(f'       UTILIZATION:  {overall_utilized_sus/overall_sus*100.:5.2f}%')
 
 
-def sreport_utilization():
+def sreport_utilization_fy(year=None, output_p=True):
+    global debug_p
+
+    # cumulative utilization for current FY
+    if not year:
+        today = datetime.date.today()
+        year = today.year
+
+    fy = fiscalyear.FiscalYear(year)
+    fiscalyear.setup_fiscal_calendar(start_month=7)  # Drexel FY starts July 1
+
+    if debug_p:
+        print(f'DEBUG: {fy}')
+        print(f'DEBUG: {fy.start} {type(fy.start)}')
+        print(f'DEBUG: {fy.end} {type(fy.end)}')
+        print('')
+
+    min_per_hour = 60.
+    command = f'sreport -n -P cluster utilization -T billing start={fy.start.year}-{fy.start.month:02}-01 end={fy.end.year}-{fy.end.month:02}-{fy.end.day:02}'.split(' ')
+
+    if debug_p:
+        print(f'DEBUG: command = {command}')
+    sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
+    alloc_su = float(sreport[2]) / min_per_hour
+    down_su = float(sreport[3]) / min_per_hour
+    planned_down_su = float(sreport[4]) / min_per_hour
+    total_down_su = down_su + planned_down_su
+    idle_su = float(sreport[5]) / min_per_hour
+    reserved_su = float(sreport[6]) / min_per_hour
+    total_su = float(sreport[7]) / min_per_hour
+
+    if output_p:
+        print(f'CUMULATIVE UTILIZATION REPORT for {fy}')
+        print('- - - - - - - - - - - - - - - - - - - - -')
+        print(f'Total SUs:     {total_su:9.6e}')
+        print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
+        print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
+        print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
+        print('')
+
+
+def sreport_utilization(year, month, output_p=True):
     global debug_p
     global rate
     global num_def_nodes
@@ -140,46 +182,74 @@ def sreport_utilization():
     # Cluster|TRES Name|Allocated|Down|PLND Down|Idle|Reserved|Reported
     # picotte|billing|13033854|1879748|0|227783998|0|242697600
 
-    year = 2021
-    months = [2, 3, 4, 5]
+    n_days = calendar.monthrange(year, month)[1]
+    date = datetime.date(year, month, 1)
+    date_str = date.strftime('%b %Y')
 
-    overall_sus = 0.
-    overall_utilized_sus = 0.
-    for month in months:
-        n_days = calendar.monthrange(year, month)[1]
-        date = datetime.date(year, month, 1)
-        date_str = date.strftime('%b %Y')
-        print(f'{date_str} ({n_days} days)')
-        command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={year}-{month:02}-{n_days:02}'.split(' ')
-        sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
-        alloc_su = float(sreport[2]) / 60.
-        down_su = float(sreport[3]) / 60.
-        planned_down_su = float(sreport[4]) / 60.
-        total_down_su = down_su + planned_down_su
-        idle_su = float(sreport[5]) / 60.
-        reserved_su = float(sreport[6]) / 60.
-        total_su = float(sreport[7]) / 60.
+    date_hdr_str = None
 
-        overall_utilized_sus += alloc_su
-        overall_sus += total_su
+    today = datetime.date.today()
+    if year == today.year and month == today.month:
+        if today.day < n_days:
+            date_hdr_str = f'{date_str} ({today.day} out of {n_days} days)'
+    else:
+        date_hdr_str = f'{date_str} ({n_days} days)'
 
+    if output_p:
+        print('UTILIZATION REPORT')
+        print(date_hdr_str)
+        print('- - - - - - - - - - - - - -')
+
+    min_per_hour = 60.
+    command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={year}-{month:02}-{n_days:02}'.split(' ')
+    sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
+    alloc_su = float(sreport[2]) / min_per_hour
+    down_su = float(sreport[3]) / min_per_hour
+    planned_down_su = float(sreport[4]) / min_per_hour
+    total_down_su = down_su + planned_down_su
+    idle_su = float(sreport[5]) / min_per_hour
+    reserved_su = float(sreport[6]) / min_per_hour
+    total_su = float(sreport[7]) / min_per_hour
+
+    if output_p:
         print(f'Total SUs:     {total_su:9.6e}')
         print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
         print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
         print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
         print('')
 
-    print(f'TOTAL AVAILBLE SUs:    {overall_sus:9.6e}')
-    print(f'TOTAL UTILIZED SUs:    {overall_utilized_sus:9.6e}')
-    print( '                       -----------')
-    print(f'UTILIZATION:           {overall_utilized_sus / overall_sus * 100.:5.2f} %')
 
 def main():
     global debug_p
 
-    manual_utilization()
-    print('')
-    sreport_utilization()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Debugging output')
+    parser.add_argument('-w', '--when', default=None,
+                        help='Date for reporting in format YYYY-MM (default: current year-month')
+    parser.add_argument('-c', '--cumulative', action='store_true',
+                        help='Show cumulative utilization for current fiscal year (default: False)')
+    args = parser.parse_args()
+
+    debug_p = args.debug
+
+    year = 0
+    month = 1
+    if args.when:
+        year = int(args.when.split('-')[0])
+        month = int(args.when.split('-')[1])
+    else:
+        today = datetime.date.today()
+        year, month = today.year, today.month
+
+    # manual_utilization()
+    # print('')
+    sreport_utilization(year, month)
+
+    if args.cumulative:
+        sreport_utilization_fy()
+
+
 
 if __name__ == '__main__':
     main()
