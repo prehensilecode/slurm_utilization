@@ -43,7 +43,8 @@ num_gpu_nodes = 12
 gpu_nodes_gpus_per_node = 4
 
 num_bm_nodes = 2
-bm_nodes_mem_per_node = 1546000  # MiB
+#bm_nodes_mem_per_node = 1546000  # MiB
+bm_nodes_mem_per_node = 1.5  # TiB
 
 
 def su_days_def(n_days):
@@ -52,7 +53,7 @@ def su_days_def(n_days):
     global su_per_core_hour
     global hrs_per_day
 
-    return num_def_nodes * n_days * hrs_per_day * su_per_core_hour
+    return num_def_nodes * def_nodes_cores_per_node * n_days * hrs_per_day * su_per_core_hour
 
 
 def su_days_gpu(n_days):
@@ -70,9 +71,9 @@ def su_days_bigmem(n_days):
     global su_per_tib_hour
     global hrs_per_day
 
-    mib_to_tib = 1024 * 1024
+    gib_to_tib = 1024.
 
-    return num_bm_nodes * bm_nodes_mem_per_node * n_days * hrs_per_day * su_per_tib_hour / mib_to_tib
+    return num_bm_nodes * bm_nodes_mem_per_node * n_days * hrs_per_day * su_per_tib_hour
 
 
 def manual_utilization():
@@ -96,12 +97,17 @@ def manual_utilization():
     for month in months:
         n_days = calendar.monthrange(year, month)[1]
         date = datetime.date(year, month, 1)
+        dt = datetime.timedelta(days=1)
+        end_period = datetime.date(year, month, n_days) + dt
         date_str = date.strftime('%b %Y')
         print(f'{date_str} ({n_days} days)')
+
         def_sus = su_days_def(n_days)
         print(f'{def_sus:8.6e} std. SUs')
+
         gpu_sus = su_days_gpu(n_days)
         print(f'{gpu_sus:8.6e} GPU SUs')
+
         bm_sus = su_days_bigmem(n_days)
         print(f'{bm_sus:8.6e} bigmem SUs')
 
@@ -109,7 +115,9 @@ def manual_utilization():
         overall_sus += total_sus
         print(f'{total_sus:50.6e} total SUs')
 
-        command = f'sreport -n -P cluster AccountUtilizationByUser Account=root Tree Start={year}-{month:02}-01 End={year}-{month:02}-{n_days:02} -T billing'.split(' ')
+        command = f'sreport -n -P cluster AccountUtilizationByUser Account=root Tree Start={year}-{month:02}-01 End={end_period.year}-{end_period.month:02}-01 -T billing'.split(' ')
+
+        print(f'command = {command}')
         sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('\n')
 
         total_sus_utilized = float(sreport[0].split('|')[5]) / 60.
