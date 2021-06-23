@@ -193,7 +193,7 @@ def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
         if today.day < n_days:
             date_hdr_str = f'{date_str} ({today.day} out of {n_days} days)'
     else:
-        date_hdr_str = f'{date_str} ({n_days} days)'
+        date_hdr_str = f'{date_str}'
 
     if output_p:
         print('UTILIZATION REPORT')
