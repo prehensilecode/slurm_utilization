@@ -34,8 +34,7 @@ hrs_per_day = 24
 
 su_per_core_hour = 1
 su_per_gpu_hour = 43
-#su_per_tib_hour = 68
-su_per_tib_hour = 50.2
+su_per_tib_hour = 68
 
 num_def_nodes = 74
 def_nodes_cores_per_node = 48
@@ -135,17 +134,23 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
         today = datetime.date.today()
         year = today.year
 
-    fy = fiscalyear.FiscalYear(year)
     fiscalyear.setup_fiscal_calendar(start_month=7)  # Drexel FY starts July 1
 
+    fy = fiscalyear.FiscalYear(year)
+    next_fy = fiscalyear.FiscalYear(year+1)
+
     if debug_p:
-        print(f'DEBUG: {fy}')
-        print(f'DEBUG: {fy.start} {type(fy.start)}')
-        print(f'DEBUG: {fy.end} {type(fy.end)}')
+        print(f'DEBUG: fy = {fy}')
+        print(f'DEBUG:      {fy.start} {type(fy.start)}')
+        print(f'DEBUG:      {fy.end} {type(fy.end)}')
+        print(f'DEBUG: next_fy = {next_fy}')
+        print(f'DEBUG:           {next_fy.start} {type(next_fy.start)}')
+        print(f'DEBUG:           {next_fy.end} {type(next_fy.end)}')
         print('')
 
     min_per_hour = 60.
-    command = f'sreport -n -P cluster utilization -T billing start={fy.start.year}-{fy.start.month:02}-01 end={fy.end.year}-{fy.end.month:02}-{fy.end.day:02}'.split(' ')
+
+    command = f'sreport -n -P cluster utilization -T billing start={fy.start.year}-{fy.start.month:02}-01 end={next_fy.start.year}-{next_fy.start.month:02}-01'.split(' ')
 
     if debug_p:
         print(f'DEBUG: command = {command}')
@@ -184,10 +189,12 @@ def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
 
     n_days = calendar.monthrange(year, month)[1]
     date = datetime.date(year, month, 1)
+    last_day = datetime.date(year, month, n_days)
+    period_end = last_day + datetime.timedelta(days=1)
+
     date_str = date.strftime('%b %Y')
 
     date_hdr_str = None
-
     today = datetime.date.today()
     if year == today.year and month == today.month:
         if today.day < n_days:
@@ -201,15 +208,15 @@ def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
         print('- - - - - - - - - - - - - -')
 
     min_per_hour = 60.
-    command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={year}-{month:02}-{n_days:02}'.split(' ')
+    command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={period_end.year}-{period_end.month:02}-01'.split(' ')
     sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
-    alloc_su = float(sreport[2]) / min_per_hour
-    down_su = float(sreport[3]) / min_per_hour
-    planned_down_su = float(sreport[4]) / min_per_hour
+    alloc_su = float(sreport[2])/min_per_hour
+    down_su = float(sreport[3])/min_per_hour
+    planned_down_su = float(sreport[4])/min_per_hour
     total_down_su = down_su + planned_down_su
-    idle_su = float(sreport[5]) / min_per_hour
-    reserved_su = float(sreport[6]) / min_per_hour
-    total_su = float(sreport[7]) / min_per_hour
+    idle_su = float(sreport[5])/min_per_hour
+    reserved_su = float(sreport[6])/min_per_hour
+    total_su = float(sreport[7])/min_per_hour
 
     if output_p:
         print(f'Total SUs:     {total_su:9.6e}')
