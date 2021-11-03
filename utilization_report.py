@@ -18,7 +18,6 @@
 import sys
 import os
 import subprocess
-import decimal
 from decimal import Decimal
 from datetime import datetime, date, timedelta
 from delorean import Delorean
