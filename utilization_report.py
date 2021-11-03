@@ -241,7 +241,7 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debugging output')
     parser.add_argument('-w', '--when', default=None,
-                        help='Date for reporting in format YYYY-MM (default: current year-month')
+                        help='Date for reporting in format YYYY-MM (default: current year-month)')
     parser.add_argument('-c', '--cumulative', action='store_true',
                         help='Show cumulative utilization for current fiscal year (default: False)')
     parser.add_argument('-p', '--pretty-print', action='store_true',
