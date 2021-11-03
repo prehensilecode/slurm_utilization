@@ -20,7 +20,8 @@ import os
 import subprocess
 import decimal
 from decimal import Decimal
-import datetime
+from datetime import datetime, date, timedelta
+from delorean import Delorean
 import calendar
 import fiscalyear
 import argparse
@@ -96,9 +97,9 @@ def manual_utilization():
     overall_utilized_sus = 0.
     for month in months:
         n_days = calendar.monthrange(year, month)[1]
-        date = datetime.date(year, month, 1)
-        dt = datetime.timedelta(days=1)
-        end_period = datetime.date(year, month, n_days) + dt
+        date = date(year, month, 1)
+        dt = timedelta(days=1)
+        end_period = date(year, month, n_days) + dt
         date_str = date.strftime('%b %Y')
         print(f'{date_str} ({n_days} days)')
 
@@ -139,7 +140,7 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
 
     # cumulative utilization for current FY
     if not year:
-        today = datetime.date.today()
+        today = date.today()
         year = today.year
 
     fiscalyear.setup_fiscal_calendar(start_month=7)  # Drexel FY starts July 1
@@ -181,7 +182,7 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
         print('')
 
 
-def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
+def sreport_utilization_year_month(year, month, output_p=True, pretty_print_p=False):
     global debug_p
     global rate
     global num_def_nodes
@@ -196,14 +197,14 @@ def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
     # picotte|billing|13033854|1879748|0|227783998|0|242697600
 
     n_days = calendar.monthrange(year, month)[1]
-    date = datetime.date(year, month, 1)
-    last_day = datetime.date(year, month, n_days)
-    period_end = last_day + datetime.timedelta(days=1)
+    date = date(year, month, 1)
+    last_day = date(year, month, n_days)
+    period_end = last_day + timedelta(days=1)
 
     date_str = date.strftime('%b %Y')
 
     date_hdr_str = None
-    today = datetime.date.today()
+    today = date.today()
     if year == today.year and month == today.month:
         if today.day < n_days:
             date_hdr_str = f'{date_str} ({today.day} out of {n_days} days)'
@@ -234,14 +235,50 @@ def sreport_utilization(year, month, output_p=True, pretty_print_p=False):
         print('')
 
 
+def sreport_utilization(start_date, end_date, output_p=True, pretty_print_p=False):
+    global debug_p
+    global rate
+    global num_def_nodes
+    global def_nodes_cores_per_node
+    global num_gpu_nodes
+    global gpu_nodes_gpus_per_node
+    global num_bm_nodes
+    global bm_nodes_mem_per_node
+
+    # sreport -n -P -T billing ...
+    # Cluster|TRES Name|Allocated|Down|PLND Down|Idle|Reserved|Reported
+    # picotte|billing|13033854|1879748|0|227783998|0|242697600
+
+    min_per_hour = 60.
+    command = f'sreport -n -P cluster utilization -T billing start={start_date} end={end_date}'.split(' ')
+    sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
+    alloc_su = float(sreport[2])/min_per_hour
+    down_su = float(sreport[3])/min_per_hour
+    planned_down_su = float(sreport[4])/min_per_hour
+    total_down_su = down_su + planned_down_su
+    idle_su = float(sreport[5])/min_per_hour
+    reserved_su = float(sreport[6])/min_per_hour
+    total_su = float(sreport[7])/min_per_hour
+
+    if output_p:
+        print(f'Utilization for period: {start_date} -- {end_date}')
+        print(f'Total SUs:     {total_su:9.6e}')
+        print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
+        print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
+        print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
+        print('')
+
+
 def main():
     global debug_p
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debugging output')
-    parser.add_argument('-w', '--when', default=None,
-                        help='Date for reporting in format YYYY-MM (default: current year-month)')
+    parser.add_argument('-s', '--start', default=None,
+                        help='Start date for reporting in format YYYY-MM-DD (default: first day of year-month)')
+    parser.add_argument('-e', '--end', default=None,
+                        help='End date for reporting in format YYYY-MM-DD (default: today)')
     parser.add_argument('-c', '--cumulative', action='store_true',
                         help='Show cumulative utilization for current fiscal year (default: False)')
     parser.add_argument('-p', '--pretty-print', action='store_true',
@@ -252,22 +289,39 @@ def main():
 
     if debug_p:
         print('DEBUG: args =', args)
-    
-    commission_date = datetime.datetime(2021, 2, 1) 
 
-    year = 0
-    month = 1
-    if args.when:
-        year = int(args.when.split('-')[0])
-        month = int(args.when.split('-')[1])
+    commission_date = datetime(2021, 2, 1)
+
+    today = date.today()
+
+    start_year = 0
+    start_month = 0
+    start_day = 0
+    if args.start:
+        start_year, start_month, start_day = [int(x) for x in args.start.split('-')]
     else:
-        today = datetime.date.today()
-        year, month = today.year, today.month
+        start_year, start_month = today.year, today.month
+        start_day = 1
+
+    start_date = date(start_year, start_month, start_day)
+
+    end_year = 0
+    end_month = 0
+    end_day = 0
+    if args.end:
+        end_year, end_month, end_day = [int(x) for x in args.end.split('-')]
+    else:
+        end_year, end_month, end_day = today.year, today.month, today.day
+
+    end_date = date(end_year, end_month, end_day)
+
+    if debug_p:
+        print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
 
     # manual_utilization()
     # print('')
 
-    sreport_utilization(year, month)
+    sreport_utilization(start_date, end_date)
 
     if args.cumulative:
         sreport_utilization_fy(year)
