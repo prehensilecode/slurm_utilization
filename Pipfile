@@ -14,6 +14,9 @@ Babel = "==2.9.1"
 Delorean = "==1.0.0"
 
 [dev-packages]
+importmagic = "*"
+epc = "*"
+python-lsp-server = "*"
 
 [requires]
 python_version = "3.9"
