@@ -171,8 +171,16 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
     reserved_su = float(sreport[6]) / min_per_hour
     total_su = float(sreport[7]) / min_per_hour
 
+    today = Delorean()
+    fy_start = Delorean(fy.start, timezone='US/Eastern')
+    next_fy_start = Delorean(next_fy.start, timezone='US/Eastern')
+    days_elapsed = (today - fy_start).days
+    days_in_fy = (next_fy_start - fy_start).days
+
     if output_p:
         print(f'CUMULATIVE UTILIZATION REPORT for fiscal year starting {fy.start.year}-{fy.start.month:02}-01')
+        if today < next_fy_start:
+            print(f'{days_elapsed} days out of {days_in_fy} ({days_elapsed / days_in_fy * 100:.02f}%)')
         print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         print(f'Total SUs:     {total_su:9.6e}')
         print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
