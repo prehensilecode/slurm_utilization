@@ -196,11 +196,11 @@ def sreport_utilization_year_month(year, month, output_p=True, pretty_print_p=Fa
     # picotte|billing|13033854|1879748|0|227783998|0|242697600
 
     n_days = calendar.monthrange(year, month)[1]
-    date = date(year, month, 1)
+    date_of_interest = date(year, month, 1)
     last_day = date(year, month, n_days)
     period_end = last_day + timedelta(days=1)
 
-    date_str = date.strftime('%b %Y')
+    date_str = date_of_interest.strftime('%b %Y')
 
     date_hdr_str = None
     today = date.today()
@@ -275,9 +275,9 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debugging output')
     parser.add_argument('-s', '--start', default=None,
-                        help='Start date for reporting in format YYYY-MM-DD (default: first day of year-month)')
+                        help='Start date for reporting in format YYYY-MM-DD (default: first day of current year-month)')
     parser.add_argument('-e', '--end', default=None,
-                        help='End date for reporting in format YYYY-MM-DD (default: today)')
+                        help='End date for reporting in format YYYY-MM-DD (default: last day of current year-month)')
     parser.add_argument('-c', '--cumulative', action='store_true',
                         help='Show cumulative utilization for current fiscal year (default: False)')
     parser.add_argument('-p', '--pretty-print', action='store_true',
@@ -309,22 +309,18 @@ def main():
     end_day = 0
     if args.end:
         end_year, end_month, end_day = [int(x) for x in args.end.split('-')]
+        end_date = date(end_year, end_month, end_day)
+
+        sreport_utilization(start_date, end_date)
+
+        if debug_p:
+            print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
     else:
-        end_year, end_month, end_day = today.year, today.month, today.day
+        sreport_utilization_year_month(start_year, start_month)
 
-    end_date = date(end_year, end_month, end_day)
-
-    if debug_p:
-        print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
-
-    # manual_utilization()
-    # print('')
-
-    sreport_utilization(start_date, end_date)
 
     if args.cumulative:
-        sreport_utilization_fy(year)
-
+        sreport_utilization_fy(start_year)
 
 
 if __name__ == '__main__':
