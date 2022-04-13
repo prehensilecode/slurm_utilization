@@ -172,8 +172,8 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
     total_su = float(sreport[7]) / min_per_hour
 
     if output_p:
-        print(f'CUMULATIVE UTILIZATION REPORT for {fy}')
-        print('- - - - - - - - - - - - - - - - - - - - -')
+        print(f'CUMULATIVE UTILIZATION REPORT for fiscal year starting {fy.start.year}-{fy.start.month:02}-01')
+        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         print(f'Total SUs:     {total_su:9.6e}')
         print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
         print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
@@ -217,7 +217,15 @@ def sreport_utilization_year_month(year, month, output_p=True, pretty_print_p=Fa
 
     min_per_hour = 60.
     command = f'sreport -n -P cluster utilization -T billing start={year}-{month:02}-01 end={period_end.year}-{period_end.month:02}-01'.split(' ')
+
+    if debug_p:
+        print(f'DEBUG: command = {command}')
+
     sreport = subprocess.run(command, check=True, capture_output=True, text=True).stdout.split('|')
+
+    if debug_p:
+        print(f'DEBUG: sreport = {sreport}')
+
     alloc_su = float(sreport[2])/min_per_hour
     down_su = float(sreport[3])/min_per_hour
     planned_down_su = float(sreport[4])/min_per_hour
@@ -307,20 +315,20 @@ def main():
     end_year = 0
     end_month = 0
     end_day = 0
-    if args.end:
-        end_year, end_month, end_day = [int(x) for x in args.end.split('-')]
-        end_date = date(end_year, end_month, end_day)
-
-        sreport_utilization(start_date, end_date)
-
-        if debug_p:
-            print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
-    else:
-        sreport_utilization_year_month(start_year, start_month)
-
-
     if args.cumulative:
         sreport_utilization_fy(start_year)
+    else:
+        if args.end:
+            end_year, end_month, end_day = [int(x) for x in args.end.split('-')]
+            end_date = date(end_year, end_month, end_day)
+
+            sreport_utilization(start_date, end_date)
+
+            if debug_p:
+                print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
+        else:
+            sreport_utilization_year_month(start_year, start_month)
+
 
 
 if __name__ == '__main__':
