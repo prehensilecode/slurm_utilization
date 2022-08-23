@@ -17,7 +17,7 @@ def read_sacct(filename):
 
 
 def main():
-    read_sacct('sacct.csv')
+    read_sacct('Data/sacct.csv')
 
 
 if __name__ == '__main__':
