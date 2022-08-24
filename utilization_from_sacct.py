@@ -141,6 +141,7 @@ def main():
     dt = end_time - start_time
     print(f'dt = {dt}')
 
+    # N.B. this does not take downtime into account
     max_gpuseconds = 12. * 4. * dt.total_seconds()
 
     print(f'Utilization = {sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.}')
