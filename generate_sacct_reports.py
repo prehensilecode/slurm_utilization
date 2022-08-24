@@ -26,15 +26,15 @@ def main():
 
     ndates = len(dates)
     for d in range(ndates - 1):
-        print(dates[d])
+        if DEBUG_P:
+            print(dates[d])
+
         for p in partitions:
             filename = f'sacct_{p.split(",")[0]}_{dates[d].datetime.strftime("%Y%m")}.csv'
             start_date = dates[d].datetime.strftime('%Y-%m-%d')
             end_date = dates[d+1].datetime.strftime('%Y-%m-%d')
             sacct_cmd = f'sacct -P -r {p} -S {start_date} -E {end_date} -o JobID%20,JobName,User,Account%25,Partition,NodeList%20,Elapsed,State,ExitCode,ReqMem,MaxRSS,MaxVMSize,AllocTRES%60'
-            if DEBUG_P:
-                print(f'DEBUG: sacct_cmd = {sacct_cmd}')
-                print(f'DEBUG: sacct_cmd.split() = {sacct_cmd.split()}')
+
             with open(filename, 'w') as outfile:
                 subprocess.run(sacct_cmd.split(), stdout=outfile)
 
