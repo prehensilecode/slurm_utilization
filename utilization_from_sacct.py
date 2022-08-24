@@ -4,6 +4,7 @@ import os
 import re
 import pandas as pd
 import numpy as np
+import datetime
 
 ### Command (to be run by root) to produce the appropriate sacct output:
 ###    sacct -p -r gpu,gpulong -S 2021-02-01 -E 2022-08-01 -o "JobID%20,JobName,User,Account%25,NodeList%20,Elapsed,State,ExitCode,AllocTRES%60" | sed -e 's/\|$//' > sacct.csv 2>&1
@@ -107,14 +108,27 @@ def main():
     sacct_df['GPUcount'] = sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
     sacct_df['GPUcount'] = pd.to_numeric(sacct_df['GPUcount'])
 
-    sacct_df['GPUhours'] = sacct_df[['Elapsed', 'GPUcount']].product(axis=1)
+    sacct_df['GPUseconds'] = sacct_df[['Elapsed', 'GPUcount']].product(axis=1)
 
     print('FOOBAR')
     print(sacct_df.info())
 
-    print('ALL OF sacct_df')
-    print(sacct_df)
+    print(f'Total GPUseconds = {sacct_df["GPUseconds"].sum()}')
+    print(f'Total GPUhours = {sacct_df["GPUseconds"].sum() / 3600.}')
 
+    #print('ALL OF sacct_df')
+    #print(sacct_df)
+
+    # Period of interest 2021-02-01 -- 2022-08-01
+    start_time = datetime.datetime(2021, 2, 1)
+    end_time = datetime.datetime(2022, 8, 1)
+
+    dt = end_time - start_time
+    print(f'dt = {dt}')
+
+    max_gpuseconds = 12. * 4. * dt.total_seconds()
+
+    print(f'Utilization = {sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.}')
 
 if __name__ == '__main__':
     main()
