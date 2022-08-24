@@ -7,7 +7,7 @@ import numpy as np
 import datetime
 
 ### Command (to be run by root) to produce the appropriate sacct output:
-###    sacct -p -r gpu,gpulong -S 2021-02-01 -E 2022-08-01 -o "JobID%20,JobName,User,Account%25,NodeList%20,Elapsed,State,ExitCode,AllocTRES%60" | sed -e 's/\|$//' > sacct.csv 2>&1
+###    sacct -P -r gpu,gpulong -S 2021-02-01 -E 2022-08-01 -o "JobID%20,JobName,User,Account%25,NodeList%20,Elapsed,State,ExitCode,AllocTRES%60" > sacct.csv 2>&1
 
 DEBUG_P = True
 
