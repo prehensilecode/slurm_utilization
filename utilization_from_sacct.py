@@ -26,7 +26,7 @@ import calendar
 import argparse
 
 ### Command (to be run by root) to produce the appropriate sacct output:
-###    sacct -P -r gpu,gpulong -S 2021-02-01 -E 2022-08-01 -o "JobID%20,JobName,User,Account%25,NodeList%20,Elapsed,State,ExitCode,AllocTRES%60" > sacct.csv 2>&1
+###    see script generate_sacct_reports.py
 
 DEBUG_P = True
 
