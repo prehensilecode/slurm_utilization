@@ -31,7 +31,7 @@ import argparse
 DEBUG_P = True
 
 
-def utilization(partition, sacct_df):
+def utilization(partition, sacct_df, use_billing=False):
     global DEBUG_P
 
     if DEBUG_P:
@@ -39,11 +39,20 @@ def utilization(partition, sacct_df):
         print(f'DEBUG: utilization(): sacct_df.head(20) = ')
         print(sacct_df.head(20))
 
+    # Period of interest 2021-02-01 -- 2022-08-01
+    start_time = datetime(2021, 2, 1)
+    end_time = datetime(2022, 8, 1)
+
+    period_of_interest = end_time - start_time
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization(): period_of_interest = {period_of_interest}')
+
     # convert Elapsed column to timedelta
     sacct_df.loc[:, 'Elapsed'] = pd.to_timedelta(sacct_df['Elapsed'])
     sacct_df.loc[:, 'Elapsed'] = sacct_df['Elapsed'].dt.total_seconds()
 
-    sacct_df = sacct_df[['JobID', 'Account', 'Elapsed', 'ReqTRES', 'AllocTRES']]
+    sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
     sacct_df = sacct_df.dropna()
 
     if DEBUG_P:
@@ -55,54 +64,68 @@ def utilization(partition, sacct_df):
     # XXX for 'bm' and 'def', look at the 'ReqMem' and 'ReqCPUS' column.
     # XXX for 'gpu', look at the ReqTRES column, and search for 'gres/gpu'
 
+    tres_of_interest = None
     if partition == 'gpu':
+        gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')]
+        if use_billing:
+            tres_of_interest = 'billing'
+        elif partition == 'gpu':
+            tres_of_interest = 'gres/gpu'
+
+        if DEBUG_P:
+            print(f'DEBUG: utilization(): tres_of_interest = {tres_of_interest}')
+
         # drop rows without "gres/gpu=" since some jobs in gpu
         # partition did not request gres/gpu
-        sacct_df = sacct_df[sacct_df['ReqTRES'].str.contains(f'gres/gpu=', regex=False)].copy()
+        gpu_sacct_df = gpu_sacct_df[gpu_sacct_df['ReqTRES'].str.contains(f'{tres_of_interest}=', regex=False)].copy()
 
         if DEBUG_P:
             print('DEBUG utilization(): after dropping "NodeList == None assigned"')
-            print(sacct_df.info())
+            print(gpu_sacct_df.info())
             print('')
 
             print('DEBUG utilization(): all of sacct_df')
-            print(sacct_df)
+            print(gpu_sacct_df)
             print('')
 
             print('DEBUG utilization(): Info')
-            print(sacct_df.info())
+            print(gpu_sacct_df.info())
             print('')
 
             print('DEBUG utilization(): Description')
-            print(sacct_df.describe())
+            print(gpu_sacct_df.describe())
             print('')
 
-        sacct_df['Elapsed'].replace({r'\-', ' days '}, regex=True, inplace=True)
 
         print('')
 
         print('DESCRIBE')
-        print(sacct_df.describe())
+        print(gpu_sacct_df.describe())
         print('')
 
         print('HEAD')
-        print(sacct_df.head(20))
+        print(gpu_sacct_df.head(20))
         print('')
 
         # want new column GPU-hours
-        sacct_df['GPUcount'] = sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
-        sacct_df['GPUcount'] = pd.to_numeric(sacct_df['GPUcount'])
-
-        sacct_df['GPUseconds'] = sacct_df[['Elapsed', 'GPUcount']].product(axis=1)
+        gpu_sacct_df['GPUcount'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
+        gpu_sacct_df['GPUcount'] = pd.to_numeric(gpu_sacct_df['GPUcount'])
+        gpu_sacct_df['GPUseconds'] = gpu_sacct_df[['Elapsed', 'GPUcount']].product(axis=1)
 
         print('FOOBAR')
-        print(sacct_df.info())
+        print(gpu_sacct_df.info())
 
-        print(f'Total GPUseconds = {sacct_df["GPUseconds"].sum()}')
-        print(f'Total GPUhours = {sacct_df["GPUseconds"].sum() / 3600.}')
+        print(f'Total GPUseconds = {gpu_sacct_df["GPUseconds"].sum()}')
+        print(f'Total GPUhours = {gpu_sacct_df["GPUseconds"].sum() / 3600.}')
 
-    #print('ALL OF sacct_df')
-    #print(sacct_df)
+        # N.B. this does not take downtime into account
+        max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
+
+        gpu_util = gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.
+        print(f'GPU utilization = {gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.}')
+
+        return gpu_util
+
 
 
 def read_sacct(filenames):
@@ -138,10 +161,13 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help='Debugging output')
     parser.add_argument('-S', '--start', default=None, help='Month to start computing utilization in format YYYY-MM')
     parser.add_argument('-E', '--end', default=None, help='Month to end compute utilization (inclusive) in format YYYY-MM')
+    parser.add_argument('-b', '--billing', action='store_true', help='Use "billing" TRES for utilization')
 
     args = parser.parse_args()
 
     DEBUG_P = args.debug
+
+    use_billing = args.billing
 
     if DEBUG_P:
         print(f'DEBUG: args = {args}')
@@ -196,10 +222,8 @@ def main():
     if DEBUG_P:
         print(f'DEBUG: dates = {dates}')
 
-    # Dict of partitions
-    partitions = {'bm': 'bm',
-                  'gpu': 'gpu,gpulong',
-                  'def': 'def,long'}
+    # List of partitions
+    partitions = ['def', 'gpu', 'bm']
 
     # Generate list of filenames
     filenames = []
@@ -242,23 +266,18 @@ def main():
     # drop jobs by urcftestprj
     sacct_df = sacct_df[sacct_df['Account'] != 'urcftestprj']
 
+    # format the Elapsed field
+    sacct_df['Elapsed'].replace(to_replace=r'\-', value=' days ', regex=True, inplace=True)
+
+    # convert Elapsed column to timedelta
+    sacct_df.loc[:, 'Elapsed'] = pd.to_timedelta(sacct_df['Elapsed'])
+
+    if DEBUG_P:
+        print(f'DEBUG: main(): sacct_df.head(20) = {sacct_df.head(20)}')
     util = {}
-    for part in partitions.keys():
-        if DEBUG_P:
-            print(f'DEBUG: computing utilization for partition {part}')
-        util[part] = utilization(part, sacct_df)
+    util['gpu'] = utilization('gpu', sacct_df, use_billing=use_billing)
 
-    # Period of interest 2021-02-01 -- 2022-08-01
-    start_time = datetime(2021, 2, 1)
-    end_time = datetime(2022, 8, 1)
 
-    dt = end_time - start_time
-    print(f'dt = {dt}')
-
-    # N.B. this does not take downtime into account
-    max_gpuseconds = 12. * 4. * dt.total_seconds()
-
-    print(f'Utilization = {sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.}')
 
 if __name__ == '__main__':
     main()
