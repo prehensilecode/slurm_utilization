@@ -274,6 +274,7 @@ def main():
 
     if DEBUG_P:
         print(f'DEBUG: main(): sacct_df.head(20) = {sacct_df.head(20)}')
+
     util = {}
     util['gpu'] = utilization('gpu', sacct_df, use_billing=use_billing)
 
