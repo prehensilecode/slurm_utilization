@@ -37,6 +37,9 @@ def main():
     print(brief_df.tail(20))
     print()
 
+    print(brief_df.describe())
+    print()
+
     total_elapsed = brief_df['Elapsed'].sum()
     print(f'Total elapsed time = {total_elapsed}')
     print(f'                   = {total_elapsed.total_seconds():.6e} secs.')
