@@ -131,3 +131,6 @@ dmypy.json
 # data files
 *.txt
 *.csv
+
+# projectile
+.projectile
