@@ -37,6 +37,13 @@ def main():
     print(brief_df.tail(20))
     print()
 
+    total_elapsed = brief_df['Elapsed'].sum()
+    print(f'Total elapsed time = {total_elapsed}')
+    total_elapsed_seconds = total_elapsed.days * 24 * 3600 + total_elapsed.seconds + total_elapsed.microseconds
+    print(f'                   = {total_elapsed_seconds:.6e} secs.')
+
+    print(f'One year = {365 * 24 * 3600:.6e} secs.')
+
 
 if __name__ == '__main__':
     main()
