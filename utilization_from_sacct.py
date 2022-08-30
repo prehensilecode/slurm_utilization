@@ -31,6 +31,86 @@ import argparse
 DEBUG_P = True
 
 
+def utilization_gpu(gpu_sacct_df, period_of_interest):
+    global DEBUG_P
+
+    tres_of_interest = 'gres/gpu'
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization(): tres_of_interest = {tres_of_interest}')
+
+    # drop rows without "gres/gpu=" since some jobs in gpu
+    # partition did not request gres/gpu
+    gpu_sacct_df = gpu_sacct_df[gpu_sacct_df['ReqTRES'].str.contains(f'{tres_of_interest}=', regex=False)].copy()
+
+    if DEBUG_P:
+        print('DEBUG utilization_gpu(): gpu_sacct_df.head(20)')
+        print(gpu_sacct_df.head(20))
+        print('')
+
+        print('DEBUG utilization_gpu(): gpu_sacct_df.tail(20)')
+        print(gpu_sacct_df.tail(20))
+        print('')
+
+        with open('gpu_sacct_df.csv', 'w') as f:
+            gpu_sacct_df.to_csv(f, index=False)
+
+        print('DEBUG utilization_gpu(): Info')
+        print(gpu_sacct_df.info())
+        print('')
+
+        print('DEBUG utilization_gpu(): Description')
+        print(gpu_sacct_df.describe())
+        print('')
+
+
+        print('DEBUG utilization_gpu(): HEAD')
+        print(gpu_sacct_df.head(20))
+        print('')
+
+        print(f'Total number of GPU jobs = {gpu_sacct_df.shape[0]}')
+
+    # want new column ReqGPUS (i.e. no. of GPUs requested)
+    gpu_sacct_df['ReqGPUS'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
+    gpu_sacct_df['ReqGPUS'] = pd.to_numeric(gpu_sacct_df['ReqGPUS'])
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df["ReqGPUS"].head(20) = {gpu_sacct_df["ReqGPUS"].head(20)}')
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df["ReqGPUS"].tail(20) = {gpu_sacct_df["ReqGPUS"].tail(20)}')
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df["ReqGPUS"].describe() = {gpu_sacct_df["ReqGPUS"].describe()}')
+
+    gpu_sacct_df['GPUseconds'] = gpu_sacct_df[['Elapsed', 'ReqGPUS']].product(axis=1)
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df["GPUseconds"].head(20) = {gpu_sacct_df["GPUseconds"].head(20)}')
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df["GPUseconds"].tail(20) = {gpu_sacct_df["GPUseconds"].tail(20)}')
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df.describe() = \n{gpu_sacct_df.describe()}')
+        print(f'DEBUG: utilization_gpu(): Total number of GPU jobs = {len(gpu_sacct_df.index)}')
+        print(f'DEBUG: utilization_gpu(): Total seconds in a year = {3600 * 24 * 365:.4e}')
+        print(f'DEBUG: utilization_gpu(): Total GPUseconds utilized = {gpu_sacct_df["GPUseconds"].sum():.4e}')
+
+    # N.B. this does not take downtime into account
+    max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): Total available GPU seconds = {max_gpuseconds:.5e}')
+
+    gpu_util = gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.
+    print(f'GPU utilization = {gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.:.2f} %')
+
+
+def utilization_mem(mem_sacct_df):
+    pass
+
+
+def utilization_cpu(cpu_sacct_df):
+    pass
+
+
+def utilization_billing(billing_sacct_df):
+    pass
+
+
 def utilization(partition, sacct_df, use_billing=False):
     global DEBUG_P
 
@@ -48,16 +128,6 @@ def utilization(partition, sacct_df, use_billing=False):
     if DEBUG_P:
         print(f'DEBUG: utilization(): period_of_interest = {period_of_interest}')
 
-    # convert Elapsed column to timedelta
-    sacct_df.loc[:, 'Elapsed'] = pd.to_timedelta(sacct_df['Elapsed'])
-    sacct_df.loc[:, 'Elapsed'] = sacct_df['Elapsed'].dt.total_seconds()
-
-    sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
-    sacct_df = sacct_df.dropna()
-
-    if DEBUG_P:
-        print('DEBUG: utilization(): INFO')
-        print(sacct_df.info())
 
     # Dict of relevant TRES
 
@@ -65,67 +135,18 @@ def utilization(partition, sacct_df, use_billing=False):
     # XXX for 'gpu', look at the ReqTRES column, and search for 'gres/gpu'
 
     tres_of_interest = None
-    if partition == 'gpu':
-        gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')]
-        if use_billing:
-            tres_of_interest = 'billing'
-        elif partition == 'gpu':
-            tres_of_interest = 'gres/gpu'
 
-        if DEBUG_P:
-            print(f'DEBUG: utilization(): tres_of_interest = {tres_of_interest}')
+    utilization = 0.
 
-        # drop rows without "gres/gpu=" since some jobs in gpu
-        # partition did not request gres/gpu
-        gpu_sacct_df = gpu_sacct_df[gpu_sacct_df['ReqTRES'].str.contains(f'{tres_of_interest}=', regex=False)].copy()
+    if not use_billing:
+        if partition == 'gpu':
+            gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
+            utilization = utilization_gpu(gpu_sacct_df, period_of_interest)
 
-        if DEBUG_P:
-            print('DEBUG utilization(): after dropping "NodeList == None assigned"')
-            print(gpu_sacct_df.info())
-            print('')
+    else:
+        pass
 
-            print('DEBUG utilization(): all of sacct_df')
-            print(gpu_sacct_df)
-            print('')
-
-            print('DEBUG utilization(): Info')
-            print(gpu_sacct_df.info())
-            print('')
-
-            print('DEBUG utilization(): Description')
-            print(gpu_sacct_df.describe())
-            print('')
-
-
-        print('')
-
-        print('DESCRIBE')
-        print(gpu_sacct_df.describe())
-        print('')
-
-        print('HEAD')
-        print(gpu_sacct_df.head(20))
-        print('')
-
-        # want new column GPU-hours
-        gpu_sacct_df['GPUcount'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
-        gpu_sacct_df['GPUcount'] = pd.to_numeric(gpu_sacct_df['GPUcount'])
-        gpu_sacct_df['GPUseconds'] = gpu_sacct_df[['Elapsed', 'GPUcount']].product(axis=1)
-
-        print('FOOBAR')
-        print(gpu_sacct_df.info())
-
-        print(f'Total GPUseconds = {gpu_sacct_df["GPUseconds"].sum()}')
-        print(f'Total GPUhours = {gpu_sacct_df["GPUseconds"].sum() / 3600.}')
-
-        # N.B. this does not take downtime into account
-        max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
-
-        gpu_util = gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.
-        print(f'GPU utilization = {gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.}')
-
-        return gpu_util
-
+    return utilization
 
 
 def read_sacct(filenames):
@@ -242,39 +263,37 @@ def main():
         print(sacct_df.info())
         print('')
 
-        print('DEBUG main(): after dropping mem columns')
-        print(sacct_df.info())
-        print('')
-
     # drop jobs with no assigned nodes
     sacct_df = sacct_df[sacct_df['NodeList'] != 'None assigned']
+
+    if DEBUG_P:
+        print('DEBUG utilization(): after dropping "NodeList == None assigned"')
+        print(sacct_df.info())
+        print('')
 
     # drop the "batch" and "extern" rows
     sacct_df = sacct_df[sacct_df['JobName'] != 'batch']
     sacct_df = sacct_df[sacct_df['JobName'] != 'extern']
 
-    # drop the rows where ReqTRES is NaN
-    mask = sacct_df['ReqTRES'].notna()
-    sacct_df = sacct_df[mask]
+    # keep rows where ReqTRES is not NaN
+    sacct_df = sacct_df[sacct_df['ReqTRES'].notna()]
 
-    if DEBUG_P:
-        print('DEBUG: main(): rows where job ID has a ".\d"')
-        mask = sacct_df['JobID'].str.contains(r'\d+\.\d+')
-        print(sacct_df[mask])
-
-
-    # drop jobs by urcftestprj
+    # keep only jobs not by urcftestprj
     sacct_df = sacct_df[sacct_df['Account'] != 'urcftestprj']
 
     # format the Elapsed field
     sacct_df['Elapsed'].replace(to_replace=r'\-', value=' days ', regex=True, inplace=True)
 
-    # convert Elapsed column to timedelta
+    # convert Elapsed column to seconds
     sacct_df.loc[:, 'Elapsed'] = pd.to_timedelta(sacct_df['Elapsed'])
+    sacct_df.loc[:, 'Elapsed'] = sacct_df['Elapsed'].dt.total_seconds()
+
+    sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
+    sacct_df = sacct_df.dropna()
 
     if DEBUG_P:
-        print(f'DEBUG: main(): sacct_df.head(20) = {sacct_df.head(20)}')
-
+        print('DEBUG: utilization(): INFO')
+        print(sacct_df.info())
     util = {}
     util['gpu'] = utilization('gpu', sacct_df, use_billing=use_billing)
 
