@@ -2,9 +2,11 @@
 import sys
 import os
 import subprocess
-from datetime import datetime
+import argparse
+from datetime import datetime, timedelta, date
 import delorean
 from delorean import Delorean
+import calendar
 
 DEBUG_P = True
 
@@ -14,14 +16,40 @@ DEBUG_P = True
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Compute cluster utilization by partition from sacct output')
+    parser.add_argument('-d', '--debug', action='store_true', help='Debugging output')
+    parser.add_argument('-S', '--start', default=None, help='Month to start computing utilization in format YYYY-MM')
+    parser.add_argument('-E', '--end', default=None, help='Month to end compute utilization (inclusive) in format YYYY-MM')
+    args = parser.parse_args()
+
     # want "partitions" to be sets of distinct hosts
     partitions = ['def,long', 'gpu,gpulong', 'bm']
 
-    date_start = datetime(year=2021, month=2, day=1)
-    date_stop = datetime(year=2022, month=8, day=1)
+    start_date_str = None
+    if not args.start:
+        today = Delorean()
+        last_month = today - timedelta(days=(today.datetime.day + 1))
+        start_date_str = last_month.date.strftime('%Y-%m')
+    else:
+        start_date_str = args.start
 
+    year, month = [int(i) for i in start_date_str.split('-')]
+    start_date = datetime(year=year, month=month, day=1)
+
+    end_date_str = None
+    if not args.end:
+        end_date_str = start_date_str
+    else:
+        end_date_str = args.end
+
+    year, month = [int(i) for i in end_date_str.split('-')]
+    end_date = datetime(year=year, month=month, day=1)
+
+    if end_date < start_date:
+        print(f'ERROR: end date {args.end} earlier than start date {args.start}')
+        sys.exit(1)
     dates = []
-    for stop in delorean.stops(freq=delorean.MONTHLY, start=date_start, stop=date_stop):
+    for stop in delorean.stops(freq=delorean.MONTHLY, start=start_date, stop=end_date):
         dates.append(stop)
 
     ndates = len(dates)
