@@ -24,6 +24,7 @@ from delorean import Delorean
 from datetime import datetime, timedelta, date
 import calendar
 import argparse
+import subprocess
 
 ### Command (to be run by root) to produce the appropriate sacct output:
 ###    see script generate_sacct_reports.py
@@ -31,7 +32,39 @@ import argparse
 DEBUG_P = True
 
 
-def utilization_gpu(gpu_sacct_df, period_of_interest):
+def sreport_utilization(start_date=None, end_date=None):
+    global DEBUG_P
+
+    start_date_str = f'{start_date.year}-{start_date.month:02d}-01'
+    end_date_str = f'{end_date.year}-{end_date.month:02d}-01'
+    sreport_cmd = f'sreport -P cluster utilization Start={start_date_str} End={end_date_str} Format="Allocated,Down,PlannedDown,Idle,Planned,Reported"'.split(' ')
+
+    sreport = subprocess.run(sreport_cmd, check=True, capture_output=True, text=True).stdout.strip().split('\n')[4:]
+
+    colnames = sreport[0].split('|')
+    colvals = [int(i) for i in sreport[1].split('|')]
+
+    sreport_dict = dict(zip(colnames, colvals))
+
+    if DEBUG_P:
+        print(f'DEBUG: sreport_utilization: colnames = {colnames}')
+        print(f'DEBUG: sreport_utilization: colvals = {colvals}')
+        print(f'DEBUG: sreport_utilization: sreport_dict = {sreport_dict}')
+
+    utilization = sreport_dict["Allocated"]/sreport_dict["Reported"] * 100.
+    print()
+    print(f'CLUSTER UTILIZATION from sreport ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+    print(f'Reported:     {sreport_dict["Reported"] / 86400.:.05e} CPU-days')
+    print(f'Allocated:    {sreport_dict["Allocated"] / 86400.:.05e} CPU-days')
+    print(f'Down:         {sreport_dict["Down"] / 86400.:.05e} CPU-days')
+    print(f'Planned down: {sreport_dict["PLND Down"] / 86400.:.05e} CPU-days')
+    print(f'Idle:         {sreport_dict["Idle"] / 86400.:.05e} CPU-days')
+    print(f'% util:       {utilization:.02f}')
+
+    return utilization
+
+
+def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
     global DEBUG_P
 
     tres_of_interest = 'gres/gpu'
@@ -90,16 +123,22 @@ def utilization_gpu(gpu_sacct_df, period_of_interest):
         print(f'DEBUG: utilization_gpu(): Total GPUseconds utilized = {gpu_sacct_df["GPUseconds"].sum():.4e}')
 
     # N.B. this does not take downtime into account
+    period_of_interest = end_date - start_date
     max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
 
-    if DEBUG_P:
-        print(f'DEBUG: utilization_gpu(): Total available GPU seconds = {max_gpuseconds:.5e}')
+    print()
+    print(f'GPU UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+    print(f'No. of GPU jobs: {len(gpu_sacct_df.index)}')
+    print(f'Total available: {max_gpuseconds / 86400.:.5e} GPU-days')
+    print(f'Allocated:       {gpu_sacct_df["GPUseconds"].sum() / 86400.:.5e} GPU-days')
 
     gpu_util = gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.
-    print(f'GPU utilization = {gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.:.2f} %')
+    print(f'GPU utilization: {gpu_util:.2f} %')
+
+    return gpu_util
 
 
-def utilization_mem(mem_sacct_df):
+def utilization_bm(bm_sacct_df):
     pass
 
 
@@ -111,7 +150,7 @@ def utilization_billing(billing_sacct_df):
     pass
 
 
-def utilization(partition, sacct_df, use_billing=False):
+def utilization(partition='def', sacct_df=None, start_date=None, end_date=None, use_billing=False):
     global DEBUG_P
 
     if DEBUG_P:
@@ -119,14 +158,8 @@ def utilization(partition, sacct_df, use_billing=False):
         print(f'DEBUG: utilization(): sacct_df.head(20) = ')
         print(sacct_df.head(20))
 
-    # Period of interest 2021-02-01 -- 2022-08-01
-    start_time = datetime(2021, 2, 1)
-    end_time = datetime(2022, 8, 1)
-
-    period_of_interest = end_time - start_time
-
     if DEBUG_P:
-        print(f'DEBUG: utilization(): period_of_interest = {period_of_interest}')
+        print(f'DEBUG: utilization(): start_date = {start_date}; end_date = {end_date}')
 
 
     # Dict of relevant TRES
@@ -141,8 +174,10 @@ def utilization(partition, sacct_df, use_billing=False):
     if not use_billing:
         if partition == 'gpu':
             gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
-            utilization = utilization_gpu(gpu_sacct_df, period_of_interest)
-
+            utilization = utilization_gpu(gpu_sacct_df, start_date, end_date)
+        elif partition = 'bm':
+            bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm').copy(deep=True)]
+            utilization = utilization_bm(bm_sacct_df, start_date, end_date)
     else:
         pass
 
@@ -235,7 +270,7 @@ def main():
     dates = []
     if end_date > start_date:
         for stop in delorean.stops(freq=delorean.MONTHLY, start=start_date, stop=end_date):
-            dates.append(stop)
+            dates.append(stop.datetime)
     else:
         dates.append(start_date)
     date_strings = [f'{d.year}{d.month:02d}' for d in dates]
@@ -294,9 +329,13 @@ def main():
     if DEBUG_P:
         print('DEBUG: utilization(): INFO')
         print(sacct_df.info())
-    util = {}
-    util['gpu'] = utilization('gpu', sacct_df, use_billing=use_billing)
 
+    util = {}
+    util['general'] = sreport_utilization(start_date, end_date)
+    util['gpu'] = utilization('gpu', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
+
+    if DEBUG_P:
+        print(f'DEBUG: util = {util}')
 
 
 if __name__ == '__main__':
