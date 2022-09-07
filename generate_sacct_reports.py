@@ -12,7 +12,7 @@ DEBUG_P = True
 
 # NB to see all jobs, this must be run as root
 # Command template
-#    sacct -P --delimiter=; -r {partition_list} -S YYYY-MM-01 -E YYYY-{MM+1}-01 -o "JobID%20,JobName,User,Account%25,Partition,NodeList%20,Elapsed,State,ExitCode,ReqCPUS,ReqMem,MaxRSS,MaxVMSize,ReqTRES%60,AllocTRES%60"
+#    sacct -P --delimiter=@ -r {partition_list} -S YYYY-MM-01 -E YYYY-{MM+1}-01 -o "JobID%20,JobName,User,Account%25,Partition,NodeList%20,Elapsed,State,ExitCode,ReqCPUS,ReqMem,MaxRSS,MaxVMSize,ReqTRES%60,AllocTRES%60"
 
 
 def main():
@@ -61,7 +61,7 @@ def main():
             filename = f'sacct_{p.split(",")[0]}_{dates[d].datetime.strftime("%Y%m")}.csv'
             start_date = dates[d].datetime.strftime('%Y-%m-%d')
             end_date = dates[d+1].datetime.strftime('%Y-%m-%d')
-            sacct_cmd = f'sacct -P --delimiter=; -r {p} -S {start_date} -E {end_date} -o JobID%20,JobName,User,Account%25,Partition,NodeList%20,Elapsed,State,ExitCode,ReqCPUS,ReqMem,MaxRSS,MaxVMSize,ReqTRES%60,AllocTRES%60'
+            sacct_cmd = f'sacct -P --delimiter=@ -r {p} -S {start_date} -E {end_date} -o JobID%20,JobName,User,Account%25,Partition,NodeList%20,Elapsed,State,ExitCode,ReqCPUS,ReqMem,MaxRSS,MaxVMSize,ReqTRES%60,AllocTRES%60'
 
             with open(filename, 'w') as outfile:
                 subprocess.run(sacct_cmd.split(), stdout=outfile)
