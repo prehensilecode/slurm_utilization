@@ -31,6 +31,11 @@ import subprocess
 
 DEBUG_P = True
 
+KIBI = 1./(1024. * 1024.)
+MEBI = 1./1024.
+GIBI = 1.
+TEBI = 1024.
+
 
 def sreport_utilization(start_date=None, end_date=None):
     global DEBUG_P
@@ -147,12 +152,46 @@ def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
     return gpu_util
 
 
+def convert_to_GiB(memstr):
+    global DEBUG_P
+    global KIBI
+    global MEBI
+    global GIBI
+    global TEBI
+
+    unit_list = [KIBI, MEBI, GIBI, TEBI]
+    prefix_list = ['K', 'M', 'G', 'T']
+
+    unit_dict = dict(zip(prefix_list, unit_list))
+
+    unit = memstr[-1]
+    amt = memstr[:-1]
+
+    return float(amt) * unit_dict[unit]
+
+
 def utilization_bm(bm_sacct_df=None, start_date=None, end_date=None):
     global DEBUG_P
 
+    # drop rows with Na ReqMem field
+    bm_sacct_df.dropna(subset='ReqMem')
+
+    # need to convert ReqMem field to GiB; values read in are
+    # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
+
+    bm_sacct_df['ReqMem'] = bm_sacct_df['ReqMem'].apply(convert_to_GiB)
+
     # N.B. this does not take downtime into account
     period_of_interest = end_date - start_date
-    max_memseconds = 2. * 4. * period_of_interest.total_seconds()
+
+    if DEBUG_P:
+        print(f'DEBUG utilization_bm(): period_of_interest = {period_of_interest}')
+
+    # no. nodes * mem. per node (~1.5 TiB = 1546 GiB) * tot. seconds
+    max_memseconds = 2. * 1546. * period_of_interest.total_seconds()
+
+    if DEBUG_P:
+        print(f'DEBUG utilization_bm(): max_memseconds = {max_memseconds}')
 
     # for bm partition, look at the ReqMem column
     # compute "mem-seconds"
@@ -161,8 +200,21 @@ def utilization_bm(bm_sacct_df=None, start_date=None, end_date=None):
     if DEBUG_P:
         print(f'DEBUG: utilization_bm: bm_sacct_df.describe() = {bm_sacct_df.describe()}')
 
-    bm_util = bm_sacct_df['MemSeconds'].sum()
+        convert_to_GiB('123K')
+        convert_to_GiB('456M')
+        convert_to_GiB('789G')
+        convert_to_GiB('321T')
 
+    total_memseconds_allocated = bm_sacct_df['MemSeconds'].sum()
+
+    bm_util = total_memseconds_allocated / max_memseconds
+
+    print()
+    print(f'BIGMEM UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+    print(f'No. of bigmem jobs: {len(bm_sacct_df.index):,}')
+    print(f'Total available:    {max_memseconds/86400.:.5e} GiB-days')
+    print(f'Allocated:          {total_memseconds_allocated/86400.:.5e} GiB-days')
+    print(f'Bigmem utilization: {bm_util:.2f} %')
 
     return bm_util
 
@@ -365,7 +417,7 @@ def main():
     util = {}
     util['general'] = sreport_utilization(start_date, end_date)
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
-    # util['bm'] = utilization('bm', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
+    util['bm'] = utilization('bm', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
 
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
