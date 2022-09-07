@@ -123,6 +123,8 @@ def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
         print(f'DEBUG: utilization_gpu(): Total GPUseconds utilized = {gpu_sacct_df["GPUseconds"].sum():.4e}')
 
     # N.B. this does not take downtime into account
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): start_date = {start_date}; end_date = {end_date}')
     period_of_interest = end_date - start_date
     max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
 
@@ -132,14 +134,30 @@ def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
     print(f'Total available: {max_gpuseconds / 86400.:.5e} GPU-days')
     print(f'Allocated:       {gpu_sacct_df["GPUseconds"].sum() / 86400.:.5e} GPU-days')
 
-    gpu_util = gpu_sacct_df["GPUseconds"].sum() / max_gpuseconds * 100.
+    gpu_util = gpu_sacct_df['GPUseconds'].sum() / max_gpuseconds * 100.
     print(f'GPU utilization: {gpu_util:.2f} %')
 
     return gpu_util
 
 
-def utilization_bm(bm_sacct_df):
-    pass
+def utilization_bm(bm_sacct_df=None, start_date=None, end_date=None):
+    global DEBUG_P
+
+    # N.B. this does not take downtime into account
+    period_of_interest = end_date - start_date
+    max_memseconds = 2. * 4. * period_of_interest.total_seconds()
+
+    # for bm partition, look at the ReqMem column
+    # compute "mem-seconds"
+    bm_sacct_df['MemSeconds'] = bm_sacct_df[['Elapsed', 'ReqMem']].product(axis=1)
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_bm: bm_sacct_df.describe() = {bm_sacct_df.describe()}')
+
+    bm_util = bm_sacct_df['MemSeconds'].sum()
+
+
+    return bm_util
 
 
 def utilization_cpu(cpu_sacct_df):
@@ -175,8 +193,8 @@ def utilization(partition='def', sacct_df=None, start_date=None, end_date=None, 
         if partition == 'gpu':
             gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
             utilization = utilization_gpu(gpu_sacct_df, start_date, end_date)
-        elif partition = 'bm':
-            bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm').copy(deep=True)]
+        elif partition == 'bm':
+            bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
             utilization = utilization_bm(bm_sacct_df, start_date, end_date)
     else:
         pass
@@ -187,7 +205,18 @@ def utilization(partition='def', sacct_df=None, start_date=None, end_date=None, 
 def read_sacct(filenames):
     global DEBUG_P
 
-    sacct_df = pd.concat((pd.read_csv(f, delimiter='|') for f in filenames), ignore_index=True)
+    if DEBUG_P:
+        print(f'DEBUG read_sacct(): filenames = {filenames}')
+        print()
+
+    #sacct_df = pd.concat((pd.read_csv(f, delimiter='|') for f in filenames), ignore_index=True)
+
+    sacct_df_list = []
+    for f in filenames:
+        print(f'DEBUG read_sacct(): filename = {f}')
+        sacct_df_list.append(pd.read_csv(f, delimiter='|'))
+
+    sacct_df = pd.concat(sacct_df_list)
 
     if DEBUG_P:
         print('DEBUG read_sacct(): Head')
@@ -254,7 +283,8 @@ def main():
         end_date_str = args.end
 
     year, month = [int(i) for i in end_date_str.split('-')]
-    end_date = datetime(year=year, month=month, day=1)
+    last_day_of_month = calendar.monthrange(year, month)[-1]
+    end_date = datetime(year=year, month=month, day=last_day_of_month)
 
     if end_date < start_date:
         print(f'ERROR: end date {args.end} earlier than start date {args.start}')
@@ -289,7 +319,7 @@ def main():
 
     if DEBUG_P:
         for f in filenames:
-            print(f'DEBUG: {f}')
+            print(f'DEBUG main() filenames - : {f}')
 
     sacct_df = read_sacct(filenames)
 
@@ -333,6 +363,7 @@ def main():
     util = {}
     util['general'] = sreport_utilization(start_date, end_date)
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
+    # util['bm'] = utilization('bm', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
 
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
