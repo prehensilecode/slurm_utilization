@@ -125,16 +125,23 @@ def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
     # N.B. this does not take downtime into account
     if DEBUG_P:
         print(f'DEBUG: utilization_gpu(): start_date = {start_date}; end_date = {end_date}')
+
     period_of_interest = end_date - start_date
-    max_gpuseconds = 12. * 4. * period_of_interest.total_seconds()
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): period_of_interest days = {period_of_interest.days + period_of_interest.seconds / 86400.:.02f}')
+
+    max_gpudays = 12. * 4. * (period_of_interest.days + period_of_interest.seconds / 86400.)
+
+    total_gpudays_allocated = gpu_sacct_df['GPUseconds'].sum() / 86400.
 
     print()
     print(f'GPU UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-    print(f'No. of GPU jobs: {len(gpu_sacct_df.index)}')
-    print(f'Total available: {max_gpuseconds / 86400.:.5e} GPU-days')
-    print(f'Allocated:       {gpu_sacct_df["GPUseconds"].sum() / 86400.:.5e} GPU-days')
+    print(f'No. of GPU jobs: {len(gpu_sacct_df.index):,}')
+    print(f'Total available: {max_gpudays:.5e} GPU-days')
+    print(f'Allocated:       {total_gpudays_allocated:.5e} GPU-days')
 
-    gpu_util = gpu_sacct_df['GPUseconds'].sum() / max_gpuseconds * 100.
+    gpu_util = total_gpudays_allocated / max_gpudays * 100.
     print(f'GPU utilization: {gpu_util:.2f} %')
 
     return gpu_util
@@ -209,14 +216,7 @@ def read_sacct(filenames):
         print(f'DEBUG read_sacct(): filenames = {filenames}')
         print()
 
-    #sacct_df = pd.concat((pd.read_csv(f, delimiter='|') for f in filenames), ignore_index=True)
-
-    sacct_df_list = []
-    for f in filenames:
-        print(f'DEBUG read_sacct(): filename = {f}')
-        sacct_df_list.append(pd.read_csv(f, delimiter='|'))
-
-    sacct_df = pd.concat(sacct_df_list)
+    sacct_df = pd.concat((pd.read_csv(f, delimiter='@') for f in filenames), ignore_index=True)
 
     if DEBUG_P:
         print('DEBUG read_sacct(): Head')
@@ -284,7 +284,9 @@ def main():
 
     year, month = [int(i) for i in end_date_str.split('-')]
     last_day_of_month = calendar.monthrange(year, month)[-1]
-    end_date = datetime(year=year, month=month, day=last_day_of_month)
+    one_day = timedelta(days=1)
+    one_sec = timedelta(seconds=1)
+    end_date = datetime(year=year, month=month, day=last_day_of_month) + one_day - one_sec
 
     if end_date < start_date:
         print(f'ERROR: end date {args.end} earlier than start date {args.start}')
