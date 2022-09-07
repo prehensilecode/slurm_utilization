@@ -64,7 +64,7 @@ def sreport_utilization(start_date=None, end_date=None):
     print(f'Down:         {sreport_dict["Down"] / 86400.:.05e} CPU-days')
     print(f'Planned down: {sreport_dict["PLND Down"] / 86400.:.05e} CPU-days')
     print(f'Idle:         {sreport_dict["Idle"] / 86400.:.05e} CPU-days')
-    print(f'% util:       {utilization:.02f}')
+    print(f'Utilization:  {utilization:.02f} %')
 
     return utilization
 
@@ -219,8 +219,38 @@ def utilization_bm(bm_sacct_df=None, start_date=None, end_date=None):
     return bm_util
 
 
-def utilization_cpu(cpu_sacct_df):
-    pass
+def utilization_def(def_sacct_df=None, start_date=None, end_date=None):
+    global DEBUG_P
+
+    # drop rows with Na ReqCPUS field
+    def_sacct_df.dropna(subset='ReqCPUS')
+
+    # N.B. this does not take downtime into account
+    period_of_interest = end_date - start_date
+
+    if DEBUG_P:
+        print(f'DEBUG utilization_def(): period_of_interest = {period_of_interest}')
+
+    # no. of nodes * no. of cores per node * tot. days
+    max_cpudays = 74. * 48. * period_of_interest.total_seconds() / 86400.
+
+    # create a CPUseconds column
+    def_sacct_df['CPUseconds'] = def_sacct_df[['Elapsed', 'ReqCPUS']].product(axis=1)
+
+    total_cpudays_allocated = def_sacct_df['CPUseconds'].sum() / 86400.
+
+    cpu_util = 0.
+
+    print()
+    print(f'CPU ("def" partition) UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+    print(f'No. of def jobs: {len(def_sacct_df.index):,}')
+    print(f'Total available: {max_cpudays:.5e} CPU-days')
+    print(f'Allocated:       {total_cpudays_allocated:.5e} CPU-days')
+
+    cpu_util = total_cpudays_allocated / max_cpudays * 100.
+    print(f'CPU utilization: {cpu_util:.2f} %')
+
+    return cpu_util
 
 
 def utilization_billing(billing_sacct_df):
@@ -255,6 +285,9 @@ def utilization(partition='def', sacct_df=None, start_date=None, end_date=None, 
         elif partition == 'bm':
             bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
             utilization = utilization_bm(bm_sacct_df, start_date, end_date)
+        elif partition == 'def':
+            def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def')].copy(deep=True)
+            utilization = utilization_def(def_sacct_df, start_date, end_date)
     else:
         pass
 
@@ -418,6 +451,7 @@ def main():
     util['general'] = sreport_utilization(start_date, end_date)
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
     util['bm'] = utilization('bm', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
+    util['def'] = utilization('def', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
 
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
