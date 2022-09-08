@@ -56,14 +56,17 @@ def sreport_utilization(start_date=None, end_date=None):
         print(f'DEBUG: sreport_utilization: colvals = {colvals}')
         print(f'DEBUG: sreport_utilization: sreport_dict = {sreport_dict}')
 
+    # sreport displays CPU-minutes; want CPU-days
+    minutes_per_day  = 24. * 60.
+
     utilization = sreport_dict["Allocated"]/sreport_dict["Reported"] * 100.
     print()
     print(f'CLUSTER UTILIZATION from sreport ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-    print(f'Reported:     {sreport_dict["Reported"] / 86400.:.05e} CPU-days')
-    print(f'Allocated:    {sreport_dict["Allocated"] / 86400.:.05e} CPU-days')
-    print(f'Down:         {sreport_dict["Down"] / 86400.:.05e} CPU-days')
-    print(f'Planned down: {sreport_dict["PLND Down"] / 86400.:.05e} CPU-days')
-    print(f'Idle:         {sreport_dict["Idle"] / 86400.:.05e} CPU-days')
+    print(f'Reported:     {sreport_dict["Reported"] / minutes_per_day:.05e} CPU-days')
+    print(f'Allocated:    {sreport_dict["Allocated"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Allocated"]/sreport_dict["Reported"]*100.:5.02f}%)')
+    print(f'Down:         {sreport_dict["Down"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Down"]/sreport_dict["Reported"]*100.:5.02f}%)')
+    print(f'Planned down: {sreport_dict["PLND Down"] / minutes_per_day:.05e} CPU-days')
+    print(f'Idle:         {sreport_dict["Idle"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%)')
     print(f'Utilization:  {utilization:.02f} %')
 
     return utilization
