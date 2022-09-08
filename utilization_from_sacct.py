@@ -102,24 +102,7 @@ def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
         with open('gpu_sacct_df.csv', 'w') as f:
             gpu_sacct_df.to_csv(f, index=False)
 
-        print('DEBUG utilization_gpu(): Info')
-        print(gpu_sacct_df.info())
-        print('')
-
-        print('DEBUG utilization_gpu(): Description')
-        print(gpu_sacct_df.describe())
-        print('')
-
-
-        print('DEBUG utilization_gpu(): HEAD')
-        print(gpu_sacct_df.head(20))
-        print('')
-
-        print(f'Total number of GPU jobs = {gpu_sacct_df.shape[0]}')
-
-    # want new column ReqGPUS (i.e. no. of GPUs requested)
-    gpu_sacct_df['ReqGPUS'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
-    gpu_sacct_df['ReqGPUS'] = pd.to_numeric(gpu_sacct_df['ReqGPUS'])
+    to_numeric(gpu_sacct_df['ReqGPUS'])
 
     if DEBUG_P:
         print(f'DEBUG: utilization_gpu(): gpu_sacct_df["ReqGPUS"].head(20) = {gpu_sacct_df["ReqGPUS"].head(20)}')
@@ -276,9 +259,6 @@ def utilization(partition='def', sacct_df=None, start_date=None, end_date=None, 
 
     if DEBUG_P:
         print(f'DEBUG: utilization(): start_date = {start_date}; end_date = {end_date}')
-
-
-    # Dict of relevant TRES
 
     # XXX for 'bm' and 'def', look at the 'ReqMem' and 'ReqCPUS' column.
     # XXX for 'gpu', look at the ReqTRES column, and search for 'gres/gpu'
