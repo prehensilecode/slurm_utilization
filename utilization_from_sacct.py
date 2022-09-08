@@ -358,6 +358,7 @@ def main():
     parser.add_argument('-S', '--start', default=None, help='Month to start computing utilization in format YYYY-MM')
     parser.add_argument('-E', '--end', default=None, help='Month to end compute utilization (inclusive) in format YYYY-MM')
     parser.add_argument('-b', '--billing', action='store_true', help='Use "billing" TRES for utilization')
+    parser.add_argument('-D', '--data-dir', required=True, help='Directory containing sacct output files')
 
     args = parser.parse_args()
 
@@ -367,6 +368,11 @@ def main():
 
     if DEBUG_P:
         print(f'DEBUG: args = {args}')
+
+    # check data_dir
+    if not os.path.isdir(args.data_dir):
+        print(f'ERROR: given data_dir={args.data_dir} is not a directory')
+        sys.exit(3)
 
     # Pandas settings
     pd.set_option('mode.chained_assignment', 'raise')
@@ -428,7 +434,7 @@ def main():
     filenames = []
     for p in partitions:
         for dstr in date_strings:
-            filenames.append(f'Data/PicotteAllTime/sacct_{p}_{dstr}.csv')
+            filenames.append(f'{args.data_dir}/sacct_{p}_{dstr}.csv')
 
     if DEBUG_P:
         for f in filenames:
