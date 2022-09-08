@@ -31,6 +31,7 @@ import subprocess
 
 DEBUG_P = True
 
+# conversion from Gibi
 KIBI = 1./(1024. * 1024.)
 MEBI = 1./1024.
 GIBI = 1.
@@ -60,6 +61,11 @@ def sreport_utilization(start_date=None, end_date=None):
     minutes_per_day  = 24. * 60.
 
     utilization = sreport_dict["Allocated"]/sreport_dict["Reported"] * 100.
+    reported_minutes = sreport_dict["Reported"] / (88. * 48.)
+
+    if DEBUG_P:
+        print(f'DEBUG: sreport_utilization: reported_minutes (to days) = {reported_minutes/(24.*60.)}')
+
     print()
     print(f'CLUSTER UTILIZATION from sreport ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
     print(f'Reported:     {sreport_dict["Reported"] / minutes_per_day:.05e} CPU-days')
@@ -69,7 +75,7 @@ def sreport_utilization(start_date=None, end_date=None):
     print(f'Idle:         {sreport_dict["Idle"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%)')
     print(f'Utilization:  {utilization:.02f} %')
 
-    return utilization
+    return utilization, reported_minutes
 
 
 def utilization_gpu(gpu_sacct_df=None, start_date=None, end_date=None):
@@ -451,7 +457,7 @@ def main():
         print(sacct_df.info())
 
     util = {}
-    util['general'] = sreport_utilization(start_date, end_date)
+    util['general'], uptime_minutes = sreport_utilization(start_date, end_date)
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
     util['bm'] = utilization('bm', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
     util['def'] = utilization('def', sacct_df=sacct_df, start_date=start_date, end_date=end_date, use_billing=use_billing)
