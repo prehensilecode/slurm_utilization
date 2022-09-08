@@ -116,7 +116,7 @@ def main():
         print(f'DEBUG: statements_df.describe() = {statements_df.describe()}')
 
     # active projects are those where "Total charge ($)" is non-zero
-    statements_df[['Last name', 'First name', 'Is MRI?']].loc[statements_df['Total charge ($)'] > 0].drop_duplicates().to_csv('active_pis.csv', index=False)
+    statements_df[['Last name', 'First name', 'Is MRI?']].loc[statements_df['Total charge ($)'] > 10.].drop_duplicates().to_csv('active_pis.csv', index=False)
 
 
 if __name__ == '__main__':
