@@ -115,7 +115,7 @@ def main():
     if DEBUG_P:
         print(f'DEBUG: statements_df.describe() = {statements_df.describe()}')
 
-    # active projects are those where "Total charge ($)" is non-zero
+    # active projects are those where "Total charge ($)" is > 10.
     statements_df[['Last name', 'First name', 'Is MRI?']].loc[statements_df['Total charge ($)'] > 10.].drop_duplicates().to_csv('active_pis.csv', index=False)
 
 
