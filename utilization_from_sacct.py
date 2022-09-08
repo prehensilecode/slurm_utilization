@@ -151,6 +151,11 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
     gpu_util = total_gpudays_allocated / max_gpudays * 100.
     print(f'GPU utilization: {gpu_util:.2f} %')
 
+    # summary stats - no. of GPUs per job
+    print()
+    print(f'Mean no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].mean():5.2f} (std. dev. {gpu_sacct_df["ReqGPUS"].std():4.2f})')
+    print(f'Max. no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].max()}')
+
     return gpu_util
 
 
@@ -223,6 +228,12 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
     print(f'Allocated:          {total_memseconds_allocated/SECS_PER_DAY:.5e} GiB-days')
     print(f'Bigmem utilization: {bm_util:.2f} %')
 
+    # summary stats
+    print()
+    print(f'Mean amount of memory per job: {bm_sacct_df["ReqMem"].mean():7.2f} GiB (std. dev. {bm_sacct_df["ReqMem"].std():7.2f})')
+    print(f'Max. amount of memory per job: {bm_sacct_df["ReqMem"].max():7.2f} GiB')
+    print(f'Min. amount of memory per job: {bm_sacct_df["ReqMem"].min():7.2f} GiB')
+
     return bm_util
 
 
@@ -262,6 +273,11 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
     cpu_util = total_cpudays_allocated / max_cpudays * 100.
     print(f'CPU utilization: {cpu_util:.2f} %')
+
+    # summary stats
+    print()
+    print(f'Mean no. of CPU cores per job: {def_sacct_df["ReqCPUS"].mean():6.2f}; (std. dev. {def_sacct_df["ReqCPUS"].std():4.2f})')
+    print(f'Max. no. of CPU cores per job: {def_sacct_df["ReqCPUS"].max()}')
 
     return cpu_util
 
