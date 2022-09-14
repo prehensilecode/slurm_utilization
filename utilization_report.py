@@ -76,6 +76,38 @@ def su_days_bigmem(n_days):
     return num_bm_nodes * bm_nodes_mem_per_node * n_days * hrs_per_day * su_per_tib_hour
 
 
+def pretty_print(start_date, end_date, total_su, alloc_su, total_down_su, idle_su):
+    print('<table>')
+    print(' <tr>')
+    print(f'  <th colspan="4">Utilization for period: {start_date} -- {end_date}')
+    print(' </tr>')
+    print(' <tr>')
+    print('  <td>Total SUs:</td>')
+    print(f' <td align="right">{total_su:9.6e}</td>')
+    print('  <td>&nbsp;</td>')
+    print('  <td>&nbsp;</td>')
+    print(' </tr>')
+    print(' <tr>')
+    print('  <td>Utilized SUs:</td>')
+    print(f' <td align="right">{alloc_su:9.6e}</td>')
+    print('  <td>Percent utilization:</td>')
+    print(f' <td align="right">{alloc_su/total_su*100.:5.2f}</td>')
+    print(' </tr>')
+    print(' <tr>')
+    print('  <td>Downtime SUs:</td>')
+    print(f' <td align="right">{total_down_su:9.6e}</td>')
+    print('  <td>Percent downtime:</td>')
+    print(f' <td align="right">{total_down_su/total_su*100.:5.2f}</td>')
+    print(' </tr>')
+    print(' <tr>')
+    print('  <td>Idle SUs:</td>')
+    print(f' <td>{idle_su:9.6e}</td>')
+    print('  <td>Percent idle time:</td>')
+    print(f' <td>{idle_su/total_su*100.:5.2f}</td>')
+    print(' </tr>')
+    print('</table>')
+
+
 def manual_utilization():
     global debug_p
     global rate
@@ -178,15 +210,18 @@ def sreport_utilization_fy(year=None, output_p=True, pretty_print_p=False):
     days_in_fy = (next_fy_start - fy_start).days
 
     if output_p:
-        print(f'CUMULATIVE UTILIZATION REPORT for fiscal year starting {fy.start.year}-{fy.start.month:02}-01')
-        if today < next_fy_start:
-            print(f'{days_elapsed} days out of {days_in_fy} ({days_elapsed / days_in_fy * 100:.02f}%)')
-        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-        print(f'Total SUs:     {total_su:9.6e}')
-        print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
-        print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
-        print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
-        print('')
+        if pretty_print_p:
+            print('NICE FORMAT')
+        else:
+            print(f'CUMULATIVE UTILIZATION REPORT for fiscal year starting {fy.start.year}-{fy.start.month:02}-01')
+            if today < next_fy_start:
+                print(f'{days_elapsed} days out of {days_in_fy} ({days_elapsed / days_in_fy * 100:.02f}%)')
+            print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+            print(f'Total SUs:     {total_su:9.6e}')
+            print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
+            print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
+            print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
+            print('')
 
 
 def sreport_utilization_year_month(year, month, output_p=True, pretty_print_p=False):
@@ -276,12 +311,15 @@ def sreport_utilization(start_date, end_date, output_p=True, pretty_print_p=Fals
     total_su = float(sreport[7])/min_per_hour
 
     if output_p:
-        print(f'Utilization for period: {start_date} -- {end_date}')
-        print(f'Total SUs:     {total_su:9.6e}')
-        print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
-        print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
-        print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
-        print('')
+        if pretty_print_p:
+            pretty_print(start_date, end_date, total_su, alloc_su, total_down_su, idle_su)
+        else:
+            print(f'Utilization for period: {start_date} -- {end_date}')
+            print(f'Total SUs:     {total_su:9.6e}')
+            print(f'Utilized SUs:  {alloc_su:9.6e}      Percent utilization:   {alloc_su/total_su*100.:5.2f} %')
+            print(f'Downtime SUs:  {total_down_su:9.6e}      Percent down time:     {total_down_su/total_su*100.:5.2f} %')
+            print(f'Idle SUs:      {idle_su:9.6e}      Percent idle time:     {idle_su/total_su*100.:5.2f} %')
+            print('')
 
 
 def main():
@@ -330,7 +368,7 @@ def main():
             end_year, end_month, end_day = [int(x) for x in args.end.split('-')]
             end_date = date(end_year, end_month, end_day)
 
-            sreport_utilization(start_date, end_date)
+            sreport_utilization(start_date, end_date, pretty_print_p=args.pretty_print)
 
             if debug_p:
                 print(f'DEBUG: start_date = {start_date}; end_date = {end_date}')
