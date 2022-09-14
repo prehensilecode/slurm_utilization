@@ -39,6 +39,7 @@ def read_statements(filenames):
     return statements_df.copy()
 
 
+
 def main():
     global DEBUG_P
 
@@ -115,8 +116,19 @@ def main():
     if DEBUG_P:
         print(f'DEBUG: statements_df.describe() = {statements_df.describe()}')
 
+    # drop uninteresting columns
+    statements_df = statements_df.drop(['Cluster', 'Share expiration', 'Fund-Org code', 'Monthly credit?'], axis=1)
+
     # active projects are those where "Total charge ($)" is > 10.
-    statements_df[['Last name', 'First name', 'Is MRI?']].loc[statements_df['Total charge ($)'] > 10.].drop_duplicates().to_csv('active_pis.csv', index=False)
+    # write CSV list of active PIs
+    statements_df[['Last name', 'First name', 'Email', 'Is MRI?']].loc[statements_df['Total charge ($)'] > 10.].drop_duplicates().to_csv('active_pis.csv', index=False)
+
+    # list of PIs by total charge
+    total_billed_df = statements_df[['Last name', 'First name', 'Email', 'Is MRI?', 'Total charge ($)']].loc[statements_df['Total charge ($)'] > 10.].groupby(['Last name', 'First name', 'Is MRI?'])['Total charge ($)'].sum().reset_index()
+
+    total_billed_df.to_csv('foobar.csv', index=False)
+
+    print(total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_string(index=False))
 
 
 if __name__ == '__main__':
