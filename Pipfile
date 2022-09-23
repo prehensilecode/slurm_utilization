@@ -16,6 +16,7 @@ pandas = "*"
 numpy = "*"
 importmagic = "*"
 epc = "*"
+matplotlib = "*"
 
 [dev-packages]
 importmagic = "*"
