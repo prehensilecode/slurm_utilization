@@ -8,6 +8,8 @@ from delorean import Delorean
 from datetime import datetime, timedelta, date
 import calendar
 import argparse
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 
 DEBUG_P = True
@@ -129,6 +131,12 @@ def main():
     total_billed_df.to_csv('foobar.csv', index=False)
 
     print(total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_string(index=False))
+
+    mpl.use('svg')
+
+    total_billed_df.sort_values(by='Total charge ($)', ascending=False).plot.bar(x='Last name', y='Total charge ($)', rot=270, fontsize=7)
+    plt.savefig('pi_charges.svg')
+
 
 
 if __name__ == '__main__':
