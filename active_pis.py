@@ -160,7 +160,7 @@ def main():
     plt.semilogy(X, Y, 'ro', label='PI charges')
     plt.semilogy(X, np.exp(m * X + c), '--')
     plt.ylabel('Charges ($)')
-    plt.text(20, 10000, f'$m = {m:.3f}')
+    plt.text(20, 10000, f'$m = {m:.3f}$')
     plt.legend()
     plt.savefig('pi_charges.svg')
 
