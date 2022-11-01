@@ -10,9 +10,14 @@ import calendar
 import argparse
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
+from scipy.optimize import curve_fit
 
 DEBUG_P = True
+
+
+def func_linear(x, m, c):
+    return (m * x) + c
+
 
 def read_statements(filenames):
     global DEBUG_P
@@ -119,7 +124,7 @@ def main():
         print(f'DEBUG: statements_df.describe() = {statements_df.describe()}')
 
     # drop uninteresting columns
-    statements_df = statements_df.drop(['Cluster', 'Share expiration', 'Fund-Org code', 'Monthly credit?'], axis=1)
+    statements_df = statements_df.drop(['Cluster', 'Share expiration', 'Fund-Org code'], axis=1)
 
     # active projects are those where "Total charge ($)" is > 10.
     # write CSV list of active PIs
@@ -128,15 +133,36 @@ def main():
     # list of PIs by total charge
     total_billed_df = statements_df[['Last name', 'First name', 'Email', 'Is MRI?', 'Total charge ($)']].loc[statements_df['Total charge ($)'] > 10.].groupby(['Last name', 'First name', 'Is MRI?'])['Total charge ($)'].sum().reset_index()
 
-    total_billed_df.to_csv('foobar.csv', index=False)
+    # sort
+    total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_csv('foobar.csv', index=False)
 
-    print(total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_string(index=False))
+    #print(total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_string(index=False))
+    #print(total_billed_df.to_string())
+
+    X = np.arange(len(total_billed_df.index))
+    Y = np.sort(total_billed_df['Total charge ($)'].to_numpy())
+    Y = Y[::-1]
+
+    print('FOOBAR')
+    print(f'X = {X}')
+    print(f'Y = {Y}; max(Y) = {max(Y)}')
+    print(Y)
+
+    params, _ = curve_fit(func_linear, X, np.log(Y))
+
+    m, c = params[0], params[1]
+
+    print(f'type(params) = {type(params)}; len(params) = {len(params)}; {params}')
 
     mpl.use('svg')
+    plt.grid(True, which="both")
 
-    total_billed_df.sort_values(by='Total charge ($)', ascending=False).plot.bar(x='Last name', y='Total charge ($)', rot=270, fontsize=7)
+    plt.semilogy(X, Y, 'ro', label='PI charges')
+    plt.semilogy(X, np.exp(m * X + c), '--')
+    plt.ylabel('Charges ($)')
+    plt.text(20, 10000, f'$m = {m:.3f}')
+    plt.legend()
     plt.savefig('pi_charges.svg')
-
 
 
 if __name__ == '__main__':
