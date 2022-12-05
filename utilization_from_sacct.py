@@ -43,14 +43,14 @@ SECS_PER_DAY = 86400.
 #
 # Resources per node; keys are partition names
 #
-CPUS_PER_NODE = {'def': 48, 'gpu': 48, 'bm': 48}
+CPUS_PER_NODE = {'def': 48., 'gpu': 48., 'bm': 48.}
 
 # N.B. mem is not installed RAM but total available for user jobs, reported by free(1)
 # Units GiB
-MEM_PER_NODE = {'def': 189, 'gpu': 189, 'bm': 1510}
+MEM_PER_NODE = {'def': 189., 'gpu': 189., 'bm': 1510.}
 
 # GPUs per node
-GPUS_PER_NODE = {'def': 0, 'gpu': 4, 'bm': 0}
+GPUS_PER_NODE = {'def': 0., 'gpu': 4., 'bm': 0.}
 
 # Utilization by fraction of node
 # - want to capture fraction of node utilized; e.g. a job in def partition
@@ -304,6 +304,10 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         def_util = cpu_util
     else:
+        # need to convert ReqMem field to GiB; values read in are
+        # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
+        def_sacct_df['ReqMem'] = def_sacct_df['ReqMem'].apply(convert_to_GiB)
+
         # create new column for by-node cost: max(fraction of cores, fraction of memory)
         def_sacct_df['FracNode'] = def_sacct_df.apply(lambda x: max(x.ReqCPUS / CPUS_PER_NODE['def'], x.ReqMem / MEM_PER_NODE['def']), axis=1)
 
