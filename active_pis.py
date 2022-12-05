@@ -11,6 +11,7 @@ import argparse
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import seaborn as sns
 
 DEBUG_P = True
 
@@ -157,11 +158,14 @@ def main():
     mpl.use('svg')
     plt.grid(True, which="both")
 
-    plt.semilogy(X, Y, 'ro', label='PI charges')
-    plt.semilogy(X, np.exp(m * X + c), '--')
+    sns.regplot(x=X, y=Y, logx=True)
+
+    #plt.semilogy(X, Y, 'ro', label='PI charges')
+    #plt.semilogy(X, np.exp(m * X + c), '--')
     plt.ylabel('Charges ($)')
-    plt.text(20, 10000, f'$m = {m:.3f}$')
-    plt.legend()
+    plt.title('PI charges')
+    #plt.text(20, 10000, f'$m = {m:.3f}$')
+    #plt.legend()
     plt.savefig('pi_charges.svg')
 
 
