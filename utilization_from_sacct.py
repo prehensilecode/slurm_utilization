@@ -168,23 +168,56 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
     else:
         max_nodedays = nodedays('gpu', uptime_secs)
 
-    max_gpudays = GPUS_PER_NODE * max_nodedays
+    if not by_node:
+        max_gpudays = GPUS_PER_NODE * max_nodedays
 
-    total_gpudays_allocated = gpu_sacct_df['GPUseconds'].sum() / SECS_PER_DAY
+        total_gpudays_allocated = gpu_sacct_df['GPUseconds'].sum() / SECS_PER_DAY
 
-    print()
-    print(f'GPU UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-    print(f'No. of GPU jobs: {len(gpu_sacct_df.index):,}')
-    print(f'Total available: {max_gpudays:.5e} GPU-days')
-    print(f'Allocated:       {total_gpudays_allocated:.5e} GPU-days')
+        print()
+        print(f'GPU UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'No. of GPU jobs: {len(gpu_sacct_df.index):,}')
+        print(f'Total available: {max_gpudays:.5e} GPU-days')
+        print(f'Allocated:       {total_gpudays_allocated:.5e} GPU-days')
 
-    gpu_util = total_gpudays_allocated / max_gpudays * 100.
-    print(f'GPU utilization: {gpu_util:.2f} %')
+        gpu_util = total_gpudays_allocated / max_gpudays * 100.
+        print(f'GPU utilization: {gpu_util:.2f} %')
 
-    # summary stats - no. of GPUs per job
-    print()
-    print(f'Mean no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].mean():5.2f} (std. dev. {gpu_sacct_df["ReqGPUS"].std():4.2f})')
-    print(f'Max. no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].max()}')
+        # summary stats - no. of GPUs per job
+        print()
+        print(f'Mean no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].mean():5.2f} (std. dev. {gpu_sacct_df["ReqGPUS"].std():4.2f})')
+        print(f'Max. no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].max()}')
+    else:
+        # take into account both CPUs and mem
+        node_util = 0.
+
+        # fix units of ReqMem
+        gpu_sacct_df['ReqMem'] = gpu_sacct_df['ReqMem'].apply(convert_to_GiB)
+
+        # create new column for by-node cost: max(fraction of cores, fraction of memory, fraction of GPU)
+        gpu_sacct_df['FracNode'] = gpu_sacct_df.apply(lambda x: max(x.ReqCPUS / CPUS_PER_NODE['gpu'], x.ReqMem / MEM_PER_NODE['gpu'], x.ReqGPUS/GPUS_PER_NODE), axis=1)
+
+        # create new column for fractional node * time
+        gpu_sacct_df['FracNodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis=1)
+
+        total_nodedays_allocated = gpu_sacct_df['FracNodeSeconds'].sum() / SECS_PER_DAY
+
+        node_util = total_nodedays_allocated / max_nodedays * 100.
+
+        print()
+        print(f'NODE UTILIZATION "gpu" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'No. of gpu jobs: {len(gpu_sacct_df.index):,}')
+        print(f'Total available: {max_nodedays:.5e} Node-days')
+        print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
+
+        node_util = total_nodedays_allocated / max_nodedays * 100.
+        print(f'Node utilization: {node_util:.2f} %')
+
+        # summary stats - no. of GPUs per job
+        print()
+        print(f'Mean no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].mean():5.2f} (std. dev. {gpu_sacct_df["ReqGPUS"].std():4.2f})')
+        print(f'Max. no. of GPUs per job: {gpu_sacct_df["ReqGPUS"].max()}')
+
+        gpu_util = node_util
 
     return gpu_util
 
@@ -282,9 +315,6 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         bm_util = mem_util
     else:
-        # create a CPUseconds column
-        bm_sacct_df['CPUseconds'] = bm_sacct_df[['Elapsed', 'ReqCPUS']].product(axis=1)
-
         # create new column for by-node cost: max(fraction of cores, fraction of memory)
         bm_sacct_df['FracNode'] = bm_sacct_df.apply(lambda x: max(x.ReqCPUS / CPUS_PER_NODE['bm'], x.ReqMem / MEM_PER_NODE['bm']), axis=1)
 
