@@ -133,6 +133,7 @@ dmypy.json
 *.csv
 *.tar.bz2
 *.tar.gz
+*.out
 
 # projectile
 .projectile
