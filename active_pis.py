@@ -137,22 +137,12 @@ def main():
     # sort
     total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_csv('foobar.csv', index=False)
 
-    #print(total_billed_df.sort_values(by='Total charge ($)', ascending=False).to_string(index=False))
-    #print(total_billed_df.to_string())
-
     X = np.arange(len(total_billed_df.index))
     Y = np.sort(total_billed_df['Total charge ($)'].to_numpy())
     Y = Y[::-1]
 
-    print('FOOBAR')
-    print(f'X = {X}')
-    print(f'Y = {Y}; max(Y) = {max(Y)}')
-    print(Y)
-
     #params, _ = curve_fit(func_linear, X, np.log(Y))
-
     #m, c = params[0], params[1]
-
     #print(f'type(params) = {type(params)}; len(params) = {len(params)}; {params}')
 
     mpl.use('svg')
@@ -161,11 +151,8 @@ def main():
     #sns.regplot(x=X, y=Y, logx=False)
 
     plt.bar(X, Y, label=f'PI charges {start_date_str} -- {end_date_str}')
-    #plt.semilogy(X, Y, 'ro', label='PI charges')
-    #plt.semilogy(X, np.exp(m * X + c), '--')
     plt.ylabel('Charges ($)')
     plt.title('PI charges')
-    #plt.text(20, 10000, f'$m = {m:.3f}$')
     plt.legend()
     plt.savefig('pi_charges.svg')
 
