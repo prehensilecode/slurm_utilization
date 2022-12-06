@@ -52,12 +52,21 @@ MEM_PER_NODE = {'def': 189., 'gpu': 189., 'bm': 1510.}
 # GPUs per node
 GPUS_PER_NODE = {'def': 0., 'gpu': 4., 'bm': 0.}
 
+# Nodes per partition
+NODES_PER_PARTITION = {'def': 74., 'gpu': 12., 'bm': 2.}
+
 # Utilization by fraction of node
 # - want to capture fraction of node utilized; e.g. a job in def partition
 #   using only 1 CPU but 50% of memory should be 50% rather than 1/48 = 2%
 #   and similar with GPUs
 # - for memory, use the 'ReqMem' field
 # - has to be done on a per-job basis
+
+
+def nodedays(partition, period):
+    # partition: def, bm, gpu
+    # period: seconds
+    return NODES_PER_PARTITION[partition] * period / SECS_PER_DAY
 
 
 def sreport_utilization(start_date=None, end_date=None):
@@ -224,34 +233,82 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
     if DEBUG_P:
         print(f'DEBUG utilization_bm(): max_memseconds = {max_memseconds}')
 
-    # for bm partition, look at the ReqMem column
-    # compute "mem-seconds"
-    bm_sacct_df['MemSeconds'] = bm_sacct_df[['Elapsed', 'ReqMem']].product(axis=1)
+    if not uptime_secs:
+        # N.B. this does not take downtime into account
+        period_of_interest = end_date - start_date
 
-    if DEBUG_P:
-        print(f'DEBUG: utilization_bm: bm_sacct_df.describe() = {bm_sacct_df.describe()}')
+        if DEBUG_P:
+            print(f'DEBUG utilization_def(): period_of_interest = {period_of_interest}')
 
-        convert_to_GiB('123K')
-        convert_to_GiB('456M')
-        convert_to_GiB('789G')
-        convert_to_GiB('321T')
+        # no. of nodes * no. of cores per node * tot. days
+        max_nodedays = nodedays('bm', period_of_interest.total_seconds())
 
-    total_memseconds_allocated = bm_sacct_df['MemSeconds'].sum()
+    else:
+        # no. of nodes * no. of cores per node * tot. days
+        max_nodedays = nodedays('bm', uptime_secs)
 
-    bm_util = total_memseconds_allocated / max_memseconds
+    bm_util = 0.
+    if not by_node:
+        # for bm partition, look at the ReqMem column
+        # compute "mem-seconds"
+        bm_sacct_df['MemSeconds'] = bm_sacct_df[['Elapsed', 'ReqMem']].product(axis=1)
 
-    print()
-    print(f'BIGMEM UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-    print(f'No. of bigmem jobs: {len(bm_sacct_df.index):,}')
-    print(f'Total available:    {max_memseconds/SECS_PER_DAY:.5e} GiB-days')
-    print(f'Allocated:          {total_memseconds_allocated/SECS_PER_DAY:.5e} GiB-days')
-    print(f'Bigmem utilization: {bm_util:.2f} %')
+        if DEBUG_P:
+            print(f'DEBUG: utilization_bm: bm_sacct_df.describe() = {bm_sacct_df.describe()}')
 
-    # summary stats
-    print()
-    print(f'Mean amount of memory per job: {bm_sacct_df["ReqMem"].mean():7.2f} GiB (std. dev. {bm_sacct_df["ReqMem"].std():7.2f})')
-    print(f'Max. amount of memory per job: {bm_sacct_df["ReqMem"].max():7.2f} GiB')
-    print(f'Min. amount of memory per job: {bm_sacct_df["ReqMem"].min():7.2f} GiB')
+            convert_to_GiB('123K')
+            convert_to_GiB('456M')
+            convert_to_GiB('789G')
+            convert_to_GiB('321T')
+
+        total_memseconds_allocated = bm_sacct_df['MemSeconds'].sum()
+
+        mem_util = total_memseconds_allocated / max_memseconds
+
+        print()
+        print(f'BIGMEM UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'No. of bigmem jobs: {len(bm_sacct_df.index):,}')
+        print(f'Total available:    {max_memseconds/SECS_PER_DAY:.5e} GiB-days')
+        print(f'Allocated:          {total_memseconds_allocated/SECS_PER_DAY:.5e} GiB-days')
+        print(f'Bigmem utilization: {mem_util:.2f} %')
+
+        # summary stats
+        print()
+        print(f'Mean amount of memory per job: {bm_sacct_df["ReqMem"].mean():7.2f} GiB (std. dev. {bm_sacct_df["ReqMem"].std():7.2f})')
+        print(f'Max. amount of memory per job: {bm_sacct_df["ReqMem"].max():7.2f} GiB')
+        print(f'Min. amount of memory per job: {bm_sacct_df["ReqMem"].min():7.2f} GiB')
+
+        bm_util = mem_util
+    else:
+        # create a CPUseconds column
+        bm_sacct_df['CPUseconds'] = bm_sacct_df[['Elapsed', 'ReqCPUS']].product(axis=1)
+
+        # create new column for by-node cost: max(fraction of cores, fraction of memory)
+        bm_sacct_df['FracNode'] = bm_sacct_df.apply(lambda x: max(x.ReqCPUS / CPUS_PER_NODE['bm'], x.ReqMem / MEM_PER_NODE['bm']), axis=1)
+
+        # create new column for fractional node * time
+        bm_sacct_df['FracNodeSeconds'] = bm_sacct_df[['Elapsed', 'FracNode']].product(axis=1)
+
+        total_nodedays_allocated = bm_sacct_df['FracNodeSeconds'].sum() / SECS_PER_DAY
+
+        node_util = 0.
+
+        print()
+        print(f'NODE UTILIZATION "bm" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'No. of bm jobs: {len(bm_sacct_df.index):,}')
+        print(f'Total available: {max_nodedays:.5e} Node-days')
+        print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
+
+        node_util = total_nodedays_allocated / max_nodedays * 100.
+        print(f'Node utilization: {node_util:.2f} %')
+
+        # summary stats
+        print()
+        print(f'Mean amount of memory per job: {bm_sacct_df["ReqMem"].mean():7.2f} GiB (std. dev. {bm_sacct_df["ReqMem"].std():7.2f})')
+        print(f'Max. amount of memory per job: {bm_sacct_df["ReqMem"].max():7.2f} GiB')
+        print(f'Min. amount of memory per job: {bm_sacct_df["ReqMem"].min():7.2f} GiB')
+
+        bm_util = node_util
 
     return bm_util
 
@@ -271,13 +328,12 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
             print(f'DEBUG utilization_def(): period_of_interest = {period_of_interest}')
 
         # no. of nodes * no. of cores per node * tot. days
-        max_nodedays = 74. * period_of_interest.total_seconds() / 86400.
-
+        max_nodedays = nodedays('def', period_of_interest.total_seconds())
     else:
         # no. of nodes * no. of cores per node * tot. days
-        max_nodedays = 74. * uptime_secs / SECS_PER_DAY
+        max_nodedays = nodedays('def', uptime_secs)
 
-    max_cpudays = 48. * max_nodedays
+    max_cpudays = CPUS_PER_NODE['def'] * max_nodedays
 
     # create a CPUseconds column
     def_sacct_df['CPUseconds'] = def_sacct_df[['Elapsed', 'ReqCPUS']].product(axis=1)
@@ -289,7 +345,7 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         cpu_util = 0.
 
         print()
-        print(f'CPU ("def" partition) UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'CPU UTILIZATION "def" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of def jobs: {len(def_sacct_df.index):,}')
         print(f'Total available: {max_cpudays:.5e} CPU-days')
         print(f'Allocated:       {total_cpudays_allocated:.5e} CPU-days')
@@ -319,7 +375,7 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         node_util = 0.
 
         print()
-        print(f'NODE ("def" partition) UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'NODE UTILIZATION "def" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of def jobs: {len(def_sacct_df.index):,}')
         print(f'Total available: {max_nodedays:.5e} Node-days')
         print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
