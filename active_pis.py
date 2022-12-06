@@ -141,6 +141,8 @@ def main():
     Y = np.sort(total_billed_df['Total charge ($)'].to_numpy())
     Y = Y[::-1]
 
+    total_charges = total_billed_df['Total charge ($)'].sum()
+
     #params, _ = curve_fit(func_linear, X, np.log(Y))
     #m, c = params[0], params[1]
     #print(f'type(params) = {type(params)}; len(params) = {len(params)}; {params}')
@@ -150,7 +152,7 @@ def main():
 
     #sns.regplot(x=X, y=Y, logx=False)
 
-    plt.bar(X, Y, label=f'PI charges {start_date_str} -- {end_date_str}')
+    plt.bar(X, Y, label=f'PI charges {start_date_str} -- {end_date_str}; total ${total_charges:.2f}')
     plt.ylabel('Charge ($)')
     plt.xlabel('PI')
     plt.title('PI charges')
