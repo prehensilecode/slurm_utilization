@@ -149,23 +149,24 @@ def main():
     print(f'Y = {Y}; max(Y) = {max(Y)}')
     print(Y)
 
-    params, _ = curve_fit(func_linear, X, np.log(Y))
+    #params, _ = curve_fit(func_linear, X, np.log(Y))
 
-    m, c = params[0], params[1]
+    #m, c = params[0], params[1]
 
-    print(f'type(params) = {type(params)}; len(params) = {len(params)}; {params}')
+    #print(f'type(params) = {type(params)}; len(params) = {len(params)}; {params}')
 
     mpl.use('svg')
     plt.grid(True, which="both")
 
-    sns.regplot(x=X, y=Y, logx=True)
+    #sns.regplot(x=X, y=Y, logx=False)
 
+    plt.bar(X, Y, label=f'PI charges {start_date_str} -- {end_date_str}')
     #plt.semilogy(X, Y, 'ro', label='PI charges')
     #plt.semilogy(X, np.exp(m * X + c), '--')
     plt.ylabel('Charges ($)')
     plt.title('PI charges')
     #plt.text(20, 10000, f'$m = {m:.3f}$')
-    #plt.legend()
+    plt.legend()
     plt.savefig('pi_charges.svg')
 
 
