@@ -50,7 +50,7 @@ CPUS_PER_NODE = {'def': 48., 'gpu': 48., 'bm': 48.}
 MEM_PER_NODE = {'def': 189., 'gpu': 189., 'bm': 1510.}
 
 # GPUs per node
-GPUS_PER_NODE = {'def': 0., 'gpu': 4., 'bm': 0.}
+GPUS_PER_NODE = 4.
 
 # Nodes per partition
 NODES_PER_PARTITION = {'def': 74., 'gpu': 12., 'bm': 2.}
@@ -164,9 +164,11 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
         if DEBUG_P:
             print(f'DEBUG: utilization_gpu(): period_of_interest days = {period_of_interest.days + period_of_interest.seconds / 86400.:.02f}')
 
-        max_gpudays = 12. * 4. * (period_of_interest.days + period_of_interest.seconds / SECS_PER_DAY)
+        max_nodedays = nodedays('gpu', period_of_interest.total_seconds())
     else:
-        max_gpudays = 12. * 4. * uptime_secs / SECS_PER_DAY
+        max_nodedays = nodedays('gpu', uptime_secs)
+
+    max_gpudays = GPUS_PER_NODE * max_nodedays
 
     total_gpudays_allocated = gpu_sacct_df['GPUseconds'].sum() / SECS_PER_DAY
 
