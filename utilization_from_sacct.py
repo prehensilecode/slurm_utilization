@@ -229,6 +229,8 @@ def convert_to_GiB(memstr):
     global GIBI
     global TEBI
 
+    # have "?" because some jobs have misformatted ReqMem fields
+    # which have "?" where a prefix is supposed to be
     unit_list = [KIBI, MEBI, GIBI, TEBI, GIBI]
     prefix_list = ['K', 'M', 'G', 'T', '?']
 
