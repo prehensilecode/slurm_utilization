@@ -151,7 +151,8 @@ def main():
     #sns.regplot(x=X, y=Y, logx=False)
 
     plt.bar(X, Y, label=f'PI charges {start_date_str} -- {end_date_str}')
-    plt.ylabel('Charges ($)')
+    plt.ylabel('Charge ($)')
+    plt.xlabel('PI')
     plt.title('PI charges')
     plt.legend()
     plt.savefig('pi_charges.svg')
