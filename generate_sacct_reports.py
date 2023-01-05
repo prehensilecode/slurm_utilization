@@ -19,7 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description='Compute cluster utilization by partition from sacct output')
     parser.add_argument('-d', '--debug', action='store_true', help='Debugging output')
     parser.add_argument('-S', '--start', default=None, help='Month to start computing utilization in format YYYY-MM')
-    parser.add_argument('-E', '--end', default=None, help='Month to end compute utilization (inclusive) in format YYYY-MM')
+    parser.add_argument('-E', '--end', default=None, help='Month to end compute utilization (exclusive) in format YYYY-MM')
     args = parser.parse_args()
 
     # want "partitions" to be sets of distinct hosts
