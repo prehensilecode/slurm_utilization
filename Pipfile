@@ -16,11 +16,13 @@ pandas = "*"
 numpy = "*"
 importmagic = "*"
 epc = "*"
+setuptools = ">=65.5.1"
 
 [dev-packages]
 importmagic = "*"
 epc = "*"
 python-lsp-server = "*"
+setuptools = ">=65.5.1"
 
 [requires]
 python_version = "3"
