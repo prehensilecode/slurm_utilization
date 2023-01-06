@@ -135,6 +135,7 @@ dmypy.json
 *.tar.gz
 *.out
 *.svg
+*.pkl
 
 # projectile
 .projectile
