@@ -442,11 +442,6 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
     if DEBUG_P:
         print(f'DEBUG: utilization(): start_date = {start_date}; end_date = {end_date}')
 
-    # XXX for 'bm' and 'def', look at the 'ReqMem' and 'ReqCPUS' column.
-    # XXX for 'gpu', look at the ReqTRES column, and search for 'gres/gpu'
-
-    tres_of_interest = None
-
     utilization = 0.
 
     if not use_billing:
@@ -463,6 +458,44 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
         pass
 
     return utilization
+
+
+def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=None, use_billing=False):
+    global DEBUG_P
+
+    if DEBUG_P:
+        print('DEBUG: usage_by_account: ')
+        print('DEBUG: describe()')
+        print(sacct_df.describe())
+        print('DEBUG: head(10)')
+        print(sacct_df.head(10))
+        print()
+
+    # drop NA rows
+    sacct_df.dropna(subset='ReqCPUS')
+    sacct_df.dropna(subset='ReqMem')
+    # drop rows without "gres/gpu=" since some jobs in gpu
+    # partition did not request gres/gpu
+    sacct_df = sacct_df[sacct_df['ReqTRES'].str.contains('gres/gpu=', regex=False)].copy()
+
+    gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
+    bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
+    def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def')].copy(deep=True)
+
+    # df looks like
+    #          JobID          Account Partition   Elapsed  ReqCPUS ReqMem                              ReqTRES                   AllocTRES
+    # 0      2707773  cappscmaqnh3prj      long  691223.0      432   576G  billing=432,cpu=432,mem=576G,node=9  billing=432,cpu=432,node=9
+    # 4      2708652            huprj      long  630147.0       48    64G     billing=48,cpu=48,mem=64G,node=1    billing=48,cpu=48,node=1
+    # 8      2821593     livshultzprj       def   86424.0        1    25G       billing=1,cpu=1,mem=25G,node=1      billing=1,cpu=1,node=1
+    # 11     2821594     livshultzprj       def   86414.0        1    25G       billing=1,cpu=1,mem=25G,node=1      billing=1,cpu=1,node=1
+    # 14     2821595     livshultzprj       def   86408.0        1    25G       billing=1,cpu=1,mem=25G,node=1      billing=1,cpu=1,node=1
+    # 17     2821596     livshultzprj       def   86401.0        1    25G       billing=1,cpu=1,mem=25G,node=1      billing=1,cpu=1,node=1
+    # 20     2821619          kwonprj       def   86366.0        4    50G       billing=4,cpu=4,mem=50G,node=1      billing=4,cpu=4,node=1
+    # 23     2821646          kwonprj       def   86353.0        4    50G       billing=4,cpu=4,mem=50G,node=1      billing=4,cpu=4,node=1
+    # 26  2826716_11       bellamyprj       def   67855.0        4     4G        billing=4,cpu=4,mem=4G,node=1      billing=4,cpu=4,node=1
+    # 29  2826716_12       bellamyprj       def   67781.0        4     4G        billing=4,cpu=4,mem=4G,node=1      billing=4,cpu=4,node=1
+
+    # WANT per account, and per node type utilization as fraction of node
 
 
 def read_sacct(filenames):
@@ -623,6 +656,9 @@ def main():
     sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
     sacct_df = sacct_df.dropna()
 
+    # pickle the data
+    sacct_df.to_pickle('sacct_df.pkl')
+
     if DEBUG_P:
         print('DEBUG: utilization(): INFO')
         print(sacct_df.info())
@@ -637,6 +673,7 @@ def main():
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
 
+    usage_by_account(sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, use_billing=use_billing)
 
 if __name__ == '__main__':
     main()
