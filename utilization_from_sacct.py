@@ -175,9 +175,9 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         print()
         print(f'GPU UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of GPU jobs: {len(gpu_sacct_df.index):,}')
-        print(f'Total available: {max_gpudays:.5e} GPU-days')
-        print(f'Allocated:       {total_gpudays_allocated:.5e} GPU-days')
+        print(f'No. of jobs:  {len(gpu_sacct_df.index):,}')
+        print(f'Total avail.: {max_gpudays:.5e} GPU-days')
+        print(f'Allocated:    {total_gpudays_allocated:.5e} GPU-days')
 
         gpu_util = total_gpudays_allocated / max_gpudays * 100.
         print(f'GPU utilization: {gpu_util:.2f} %')
@@ -205,9 +205,9 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         print()
         print(f'GPU NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of gpu jobs: {len(gpu_sacct_df.index):,}')
-        print(f'Total available: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
+        print(f'No. of jobs:  {len(gpu_sacct_df.index):,}')
+        print(f'Total avail.: {max_nodedays:.5e} Node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
         print(f'Node utilization: {node_util:.2f} %')
@@ -304,9 +304,9 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         print()
         print(f'BIGMEM UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of bigmem jobs: {len(bm_sacct_df.index):,}')
-        print(f'Total available:    {max_memseconds/SECS_PER_DAY:.5e} GiB-days')
-        print(f'Allocated:          {total_memseconds_allocated/SECS_PER_DAY:.5e} GiB-days')
+        print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
+        print(f'Total avail.: {max_memseconds/SECS_PER_DAY:.5e} GiB-days')
+        print(f'Allocated:    {total_memseconds_allocated/SECS_PER_DAY:.5e} GiB-days')
         print(f'Bigmem utilization: {mem_util:.2f} %')
 
         # summary stats
@@ -329,9 +329,9 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         print()
         print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of bm jobs: {len(bm_sacct_df.index):,}')
-        print(f'Total available: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
+        print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
+        print(f'Total avail.: {max_nodedays:.5e} Node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
         print(f'Node utilization: {node_util:.2f} %')
@@ -380,9 +380,9 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         print()
         print(f'CPU UTILIZATION STD. NODES ("def" and "long") ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of def jobs: {len(def_sacct_df.index):,}')
-        print(f'Total available: {max_cpudays:.5e} CPU-days')
-        print(f'Allocated:       {total_cpudays_allocated:.5e} CPU-days')
+        print(f'No. of jobs:  {len(def_sacct_df.index):,}')
+        print(f'Total avail.: {max_cpudays:.5e} CPU-days')
+        print(f'Allocated:    {total_cpudays_allocated:.5e} CPU-days')
 
         cpu_util = total_cpudays_allocated / max_cpudays * 100.
         print(f'CPU utilization: {cpu_util:.2f} %')
@@ -410,9 +410,9 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         print()
         print(f'STANDARD NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
-        print(f'No. of def jobs: {len(def_sacct_df.index):,}')
-        print(f'Total available: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
+        print(f'No. of jobs:  {len(def_sacct_df.index):,}')
+        print(f'Total avail.: {max_nodedays:.5e} Node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
         print(f'Node utilization: {node_util:.2f} %')
