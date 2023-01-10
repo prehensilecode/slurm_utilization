@@ -656,7 +656,7 @@ def main():
     sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
     sacct_df = sacct_df.dropna()
 
-    sacct_df.to_pickle(f'sacct_df_{date_strings[0]}-{date_strings[-1]}.pkl')
+    sacct_df.to_pickle(f'sacct_df_{date_strings[0]}_{date_strings[-1]}.pkl')
 
     if DEBUG_P:
         print('DEBUG: utilization(): INFO')
