@@ -204,7 +204,7 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
         node_util = total_nodedays_allocated / max_nodedays * 100.
 
         print()
-        print(f'NODE UTILIZATION "gpu" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'GPU NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of gpu jobs: {len(gpu_sacct_df.index):,}')
         print(f'Total available: {max_nodedays:.5e} Node-days')
         print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
@@ -275,7 +275,7 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
         period_of_interest = end_date - start_date
 
         if DEBUG_P:
-            print(f'DEBUG utilization_def(): period_of_interest = {period_of_interest}')
+            print(f'DEBUG utilization_bm(): period_of_interest = {period_of_interest}')
 
         # no. of nodes * no. of cores per node * tot. days
         max_nodedays = nodedays('bm', period_of_interest.total_seconds())
@@ -328,7 +328,7 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
         node_util = 0.
 
         print()
-        print(f'NODE UTILIZATION "bm" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of bm jobs: {len(bm_sacct_df.index):,}')
         print(f'Total available: {max_nodedays:.5e} Node-days')
         print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
@@ -379,7 +379,7 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         cpu_util = 0.
 
         print()
-        print(f'CPU UTILIZATION "def" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'CPU UTILIZATION STD. NODES ("def" and "long") ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of def jobs: {len(def_sacct_df.index):,}')
         print(f'Total available: {max_cpudays:.5e} CPU-days')
         print(f'Allocated:       {total_cpudays_allocated:.5e} CPU-days')
@@ -409,7 +409,7 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         node_util = 0.
 
         print()
-        print(f'NODE UTILIZATION "def" partition ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
+        print(f'STANDARD NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d})')
         print(f'No. of def jobs: {len(def_sacct_df.index):,}')
         print(f'Total available: {max_nodedays:.5e} Node-days')
         print(f'Allocated:       {total_nodedays_allocated:.5e} Node-days')
@@ -457,7 +457,7 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
             bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
             utilization = utilization_bm(bm_sacct_df, uptime_secs, start_date, end_date, by_node)
         elif partition == 'def':
-            def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def')].copy(deep=True)
+            def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
             utilization = utilization_def(def_sacct_df, uptime_secs, start_date, end_date, by_node)
     else:
         pass
