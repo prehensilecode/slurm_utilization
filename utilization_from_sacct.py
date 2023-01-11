@@ -543,12 +543,15 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
     usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index().to_csv('usage_by_account.csv')
 
     usage_df['TotalNodeHours'] = usage_df[['Account', 'NodeType', 'NodeHours']].groupby('Account')['NodeHours'].transform(sum)
+    print('')
+    print('FOOBAR')
     print(usage_df.describe())
-    #usage_df = usage_df[['Account', 'NodeType', 'NodeHours', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False).drop('TotalNodeHours', axis='columns')
-    #usage_df = usage_df[['Account', 'NodeType', 'NodeHours', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False)
+    print(usage_df.head(10))
+    print(usage_df.tail(10))
 
-    #print('- - - - - - - - - - -')
-    #print(usage_df[['Account', 'NodeType', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False).groupby(['Account', 'NodeType']).sum())
+    print(usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False))
+
+    usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False).to_csv('usage_by_account_totals.csv')
 
 
 def read_sacct(filenames):
