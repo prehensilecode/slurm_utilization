@@ -17,6 +17,8 @@
 import sys
 import os
 import re
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 import numpy as np
 import delorean
@@ -37,8 +39,11 @@ MEBI = 1./1024.
 GIBI = 1.
 TEBI = 1024.
 
-# seconds per days
+# seconds per day
 SECS_PER_DAY = 86400.
+
+# seconds per hour
+SECS_PER_HOUR = 3600.
 
 #
 # Resources per node; keys are partition names
@@ -469,18 +474,13 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
         print(sacct_df.describe())
         print('DEBUG: head(10)')
         print(sacct_df.head(10))
+        print('DEBUG: tail(10)')
+        print(sacct_df.tail(10))
         print()
 
     # drop NA rows
     sacct_df.dropna(subset='ReqCPUS')
     sacct_df.dropna(subset='ReqMem')
-    # drop rows without "gres/gpu=" since some jobs in gpu
-    # partition did not request gres/gpu
-    sacct_df = sacct_df[sacct_df['ReqTRES'].str.contains('gres/gpu=', regex=False)].copy()
-
-    gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
-    bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
-    def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def')].copy(deep=True)
 
     # df looks like
     #          JobID          Account Partition   Elapsed  ReqCPUS ReqMem                              ReqTRES                   AllocTRES
@@ -496,6 +496,59 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
     # 29  2826716_12       bellamyprj       def   67781.0        4     4G        billing=4,cpu=4,mem=4G,node=1      billing=4,cpu=4,node=1
 
     # WANT per account, and per node type utilization as fraction of node
+    # - merge partitions: def & long -> std; gpu & gpulong -> gpu; bm (no change)
+    # - create a new column "NodeSeconds"
+
+    std_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
+
+    gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
+    # drop rows without "gres/gpu=" since some jobs in gpu
+    # partition did not request gres/gpu
+    gpu_sacct_df = gpu_sacct_df[sacct_df['ReqTRES'].str.contains('gres/gpu=', regex=False)].copy()
+
+    bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
+
+    # need to convert ReqMem field to GiB; values read in are
+    # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
+    std_sacct_df['ReqMem'] = std_sacct_df['ReqMem'].apply(convert_to_GiB)
+    std_sacct_df['NodeType'] = 'std'
+    gpu_sacct_df['ReqMem'] = gpu_sacct_df['ReqMem'].apply(convert_to_GiB)
+    gpu_sacct_df['NodeType'] = 'gpu'
+    bm_sacct_df['ReqMem'] = bm_sacct_df['ReqMem'].apply(convert_to_GiB)
+    bm_sacct_df['NodeType'] = 'bm'
+
+    # want new column ReqGPUS (i.e. no. of GPUs requested)
+    gpu_sacct_df['ReqGPUS'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
+    gpu_sacct_df['ReqGPUS'] = pd.to_numeric(gpu_sacct_df['ReqGPUS'])
+
+    # create new column for by-node usage: max(fraction of cores, fraction of memory); or max(frac. of cores, frac. of mem., frac. of GPUs)
+    std_sacct_df['FracNode'] = std_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['def'], row.ReqMem / MEM_PER_NODE['def']), axis='columns')
+    gpu_sacct_df['FracNode'] = gpu_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['gpu'], row.ReqMem / MEM_PER_NODE['gpu'], float(row.ReqGPUS) / GPUS_PER_NODE), axis='columns')
+    bm_sacct_df['FracNode'] = bm_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['bm'], row.ReqMem / MEM_PER_NODE['bm']), axis='columns')
+
+    # create new column for fractional node * time
+    std_sacct_df['NodeSeconds'] = std_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
+    gpu_sacct_df['NodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
+    bm_sacct_df['NodeSeconds'] = bm_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
+
+    usage_df = pd.concat([std_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
+                          gpu_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
+                          bm_sacct_df[['Account', 'NodeType', 'NodeSeconds']]])
+
+    # convert to NodeHours
+    usage_df['NodeHours'] = usage_df.apply(lambda row: row.NodeSeconds / SECS_PER_HOUR, axis='columns')
+
+    print(usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum())
+
+    usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index().to_csv('usage_by_account.csv')
+
+    usage_df['TotalNodeHours'] = usage_df[['Account', 'NodeType', 'NodeHours']].groupby('Account')['NodeHours'].transform(sum)
+    print(usage_df.describe())
+    #usage_df = usage_df[['Account', 'NodeType', 'NodeHours', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False).drop('TotalNodeHours', axis='columns')
+    #usage_df = usage_df[['Account', 'NodeType', 'NodeHours', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False)
+
+    #print('- - - - - - - - - - -')
+    #print(usage_df[['Account', 'NodeType', 'TotalNodeHours']].sort_values('TotalNodeHours', ascending=False).groupby(['Account', 'NodeType']).sum())
 
 
 def read_sacct(filenames):
@@ -668,6 +721,7 @@ def main():
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, use_billing=use_billing, by_node=by_node)
     util['bm'] = utilization('bm', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, use_billing=use_billing, by_node=by_node)
     util['def'] = utilization('def', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, use_billing=use_billing, by_node=by_node)
+    print()
 
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
