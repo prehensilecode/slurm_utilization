@@ -16,14 +16,12 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import sys
 import os
-import re
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
-import numpy as np
 import delorean
 from delorean import Delorean
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 import calendar
 import argparse
 import subprocess
