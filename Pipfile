@@ -23,6 +23,7 @@ importmagic = "*"
 epc = "*"
 python-lsp-server = "*"
 setuptools = ">=65.5.1"
+isort = "*"
 
 [requires]
 python_version = "3"
