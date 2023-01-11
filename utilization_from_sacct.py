@@ -549,6 +549,12 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
 
     usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False).to_csv(f'usage_by_account_totals_{start_date_str}_{end_date_str}.csv')
 
+    #print(usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').groupby('Account').sum())
+
+    usage_df = usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index()
+    usage_df = usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').fillna(0)
+    usage_df.to_csv(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.csv')
+
 
 def read_sacct(filenames):
     global DEBUG_P
