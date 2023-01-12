@@ -497,7 +497,7 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
     # - merge partitions: def & long -> std; gpu & gpulong -> gpu; bm (no change)
     # - create a new column "NodeSeconds"
 
-    std_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
+    standard_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
 
     gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
     # drop rows without "gres/gpu=" since some jobs in gpu
@@ -508,35 +508,36 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
 
     # need to convert ReqMem field to GiB; values read in are
     # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
-    std_sacct_df['ReqMem'] = std_sacct_df['ReqMem'].apply(convert_to_GiB)
-    std_sacct_df['NodeType'] = 'std'
+    standard_sacct_df['ReqMem'] = standard_sacct_df['ReqMem'].apply(convert_to_GiB)
+    standard_sacct_df['NodeType'] = 'standard'
     gpu_sacct_df['ReqMem'] = gpu_sacct_df['ReqMem'].apply(convert_to_GiB)
     gpu_sacct_df['NodeType'] = 'gpu'
     bm_sacct_df['ReqMem'] = bm_sacct_df['ReqMem'].apply(convert_to_GiB)
-    bm_sacct_df['NodeType'] = 'bm'
+    bm_sacct_df['NodeType'] = 'bigmem'
 
     # want new column ReqGPUS (i.e. no. of GPUs requested)
     gpu_sacct_df['ReqGPUS'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
     gpu_sacct_df['ReqGPUS'] = pd.to_numeric(gpu_sacct_df['ReqGPUS'])
 
     # create new column for by-node usage: max(fraction of cores, fraction of memory); or max(frac. of cores, frac. of mem., frac. of GPUs)
-    std_sacct_df['FracNode'] = std_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['def'], row.ReqMem / MEM_PER_NODE['def']), axis='columns')
+    standard_sacct_df['FracNode'] = standard_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['def'], row.ReqMem / MEM_PER_NODE['def']), axis='columns')
     gpu_sacct_df['FracNode'] = gpu_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['gpu'], row.ReqMem / MEM_PER_NODE['gpu'], float(row.ReqGPUS) / GPUS_PER_NODE), axis='columns')
     bm_sacct_df['FracNode'] = bm_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['bm'], row.ReqMem / MEM_PER_NODE['bm']), axis='columns')
 
     # create new column for fractional node * time
-    std_sacct_df['NodeSeconds'] = std_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
+    standard_sacct_df['NodeSeconds'] = standard_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
     gpu_sacct_df['NodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
     bm_sacct_df['NodeSeconds'] = bm_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
 
-    usage_df = pd.concat([std_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
+    usage_df = pd.concat([standard_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
                           gpu_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
                           bm_sacct_df[['Account', 'NodeType', 'NodeSeconds']]])
 
     # convert to NodeHours
     usage_df['NodeHours'] = usage_df.apply(lambda row: row.NodeSeconds / SECS_PER_HOUR, axis='columns')
 
-    print(usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum())
+    if DEBUG_P:
+        print(usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum())
 
     start_date_str = f'{start_date.year}{start_date.month:02d}'
     end_date_str = f'{end_date.year}{end_date.month:02d}'
@@ -545,15 +546,28 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
 
     usage_df['TotalNodeHours'] = usage_df[['Account', 'NodeType', 'NodeHours']].groupby('Account')['NodeHours'].transform(sum)
 
-    print(usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False))
+    if DEBUG_P:
+        print(usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False))
 
+    # save CSV
     usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False).to_csv(f'usage_by_account_totals_{start_date_str}_{end_date_str}.csv')
-
-    #print(usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').groupby('Account').sum())
 
     usage_df = usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index()
     usage_df = usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').fillna(0)
+
+    # save CSV
     usage_df.to_csv(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.csv')
+
+    usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
+    usage_df.reset_index(inplace=True)
+    usage_df['TotalNodeHours'] = usage_df.apply(lambda row: row['bigmem'] + row['gpu'] + row['standard'], axis='columns')
+    usage_df.sort_values(by=['TotalNodeHours'], ascending=False, inplace=True)
+    foo_df = usage_df.query('TotalNodeHours > 0.').sort_values(by=['TotalNodeHours'], ascending=False)
+
+    # FIXME vertical axis labels are messed up
+    ax = foo_df[['Account', 'bigmem', 'gpu', 'standard']].plot.barh(stacked=True)
+    ax.invert_yaxis()
+    ax.figure.savefig(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png')
 
 
 def read_sacct(filenames):
