@@ -25,6 +25,9 @@ from datetime import datetime, timedelta
 import calendar
 import argparse
 import subprocess
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 ### Command (to be run by root) to produce the appropriate sacct output:
 ###    see script generate_sacct_reports.py
@@ -560,14 +563,48 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
 
     usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
     usage_df.reset_index(inplace=True)
-    usage_df['TotalNodeHours'] = usage_df.apply(lambda row: row['bigmem'] + row['gpu'] + row['standard'], axis='columns')
+    usage_df['TotalNodeHours'] = usage_df['bigmem'] + usage_df['gpu'] + usage_df['standard']
+    usage_df['GPUStandardHours'] = usage_df['gpu'] + usage_df['standard']
     usage_df.sort_values(by=['TotalNodeHours'], ascending=False, inplace=True)
-    foo_df = usage_df.query('TotalNodeHours > 0.').sort_values(by=['TotalNodeHours'], ascending=False)
+    # want only groups which used more than 1 node-hour per month
+    delta_t = Delorean(end_date, timezone='UTC') - Delorean(start_date, timezone='UTC')
+    n_months = int(delta_t.total_seconds() / SECS_PER_DAY / 30.)
+    foo_df = usage_df.query(f'TotalNodeHours > {n_months}').sort_values(by=['TotalNodeHours'], ascending=False)
 
-    # FIXME vertical axis labels are messed up
-    ax = foo_df[['Account', 'bigmem', 'gpu', 'standard']].plot.barh(stacked=True)
-    ax.invert_yaxis()
-    ax.figure.savefig(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png')
+    print('DEBUG: foo_df = ')
+    print(foo_df.head(5))
+    print(foo_df[foo_df['Account'] == 'urbancmriprj'])
+    foo_df.to_csv('foo.csv')
+
+    # seaborn plot
+    # 3 bars: bigmem, gpu, standard
+    sns.set_theme()  # set seqborn defaults
+    sns.set_style('whitegrid')
+    sns.color_palette('colorblind')
+    sns.set(rc={'figure.figsize': (10., 7.5)})
+    sns.set_context('paper', rc={'font.size': 8})
+
+    paper_dims = (11., 8.5)
+    fig, ax = plt.subplots(figsize=paper_dims)
+
+    # stack the bars right to left (layered bottom to top)
+    # first one is bigmem
+    sns.barplot(ax=ax, data=foo_df, x='TotalNodeHours', y='Account', color='steelblue')
+    # second one is gpu
+    sns.barplot(ax=ax, data=foo_df, x='GPUStandardHours', y='Account', color='olivedrab')
+    # third one is standard
+    sns.barplot(ax=ax, data=foo_df, x='standard', y='Account', color='gold')
+    bigmem_bar = mpatches.Patch(color='steelblue', label='bigmem')
+    gpu_bar = mpatches.Patch(color='olivedrab', label='gpu')
+    standard_bar = mpatches.Patch(color='gold', label='standard')
+    plt.legend(handles=[standard_bar, gpu_bar, bigmem_bar], loc='lower right')
+    plt.xlabel('Node-Hours')
+    plt.ylabel('Account')
+    title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
+    plt.title(f'Picotte usage by account (>1 node-hr per month) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+    plt.savefig(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
+    plt.clf()
+
 
 
 def read_sacct(filenames):
