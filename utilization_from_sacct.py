@@ -762,8 +762,12 @@ def main():
     sacct_df.loc[:, 'Elapsed'] = pd.to_timedelta(sacct_df['Elapsed'])
     sacct_df.loc[:, 'Elapsed'] = sacct_df['Elapsed'].dt.total_seconds()
 
-    sacct_df = sacct_df[['JobID', 'Account', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
+    sacct_df = sacct_df[['JobID', 'Account', 'User', 'Partition', 'Elapsed', 'ReqCPUS', 'ReqMem', 'ReqTRES', 'AllocTRES']]
     sacct_df = sacct_df.dropna()
+
+    # print out number of unique values in columns
+    print('No. of unique values:')
+    print(sacct_df.nunique())
 
     sacct_df.to_pickle(f'sacct_df_{date_strings[0]}_{date_strings[-1]}.pkl')
 
