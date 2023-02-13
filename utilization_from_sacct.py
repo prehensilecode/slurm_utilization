@@ -75,6 +75,26 @@ def nodedays(partition, period):
     return NODES_PER_PARTITION[partition] * period / SECS_PER_DAY
 
 
+def convert_to_GiB(memstr):
+    global DEBUG_P
+    global KIBI
+    global MEBI
+    global GIBI
+    global TEBI
+
+    # have "?" because some jobs have misformatted ReqMem fields
+    # which have "?" where a prefix is supposed to be
+    unit_list = [KIBI, MEBI, GIBI, TEBI, GIBI]
+    prefix_list = ['K', 'M', 'G', 'T', '?']
+
+    unit_dict = dict(zip(prefix_list, unit_list))
+
+    unit = memstr[-1]
+    amt = memstr[:-1]
+
+    return float(amt) * unit_dict[unit]
+
+
 def sreport_utilization(start_date=None, end_date=None):
     global DEBUG_P
 
@@ -226,26 +246,6 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
         gpu_util = node_util
 
     return gpu_util
-
-
-def convert_to_GiB(memstr):
-    global DEBUG_P
-    global KIBI
-    global MEBI
-    global GIBI
-    global TEBI
-
-    # have "?" because some jobs have misformatted ReqMem fields
-    # which have "?" where a prefix is supposed to be
-    unit_list = [KIBI, MEBI, GIBI, TEBI, GIBI]
-    prefix_list = ['K', 'M', 'G', 'T', '?']
-
-    unit_dict = dict(zip(prefix_list, unit_list))
-
-    unit = memstr[-1]
-    amt = memstr[:-1]
-
-    return float(amt) * unit_dict[unit]
 
 
 def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, by_node=False):
@@ -433,8 +433,11 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
     return def_util
 
 
-def utilization_billing(billing_sacct_df):
+def utilization_def_billing(sacct_df):
     pass
+
+
+def utilization_
 
 
 def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=None, end_date=None, use_billing=False, by_node=False):
