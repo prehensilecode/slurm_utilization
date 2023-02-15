@@ -373,7 +373,7 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         total_memseconds_allocated = bm_sacct_df['MemSeconds'].sum()
 
-        mem_util = total_memseconds_allocated / max_memseconds
+        mem_util = total_memseconds_allocated / max_memseconds * 100.
 
         print()
         print(f'BIGMEM UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
