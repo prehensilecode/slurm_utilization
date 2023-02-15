@@ -684,6 +684,12 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
 
         usage_df['TotalSU'] = usage_df[['Account', 'NodeType', 'SU']].groupby('Account')['SU'].transform(sum)
         usage_df = usage_df[['Account', 'NodeType', 'SU']].groupby(['Account', 'NodeType']).sum().reset_index()
+
+        total_su_per_account = usage_df[['Account', 'SU']].groupby(['Account']).sum().reset_index()
+
+        with open(f'total_su_per_account_{start_date_str}_{end_date_str}.csv', 'w') as f:
+            total_su_per_account.to_csv(f)
+
         usage_df = usage_df.pivot(index='Account', columns='NodeType', values='SU').fillna(0)
         usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
         usage_df.reset_index(inplace=True)
