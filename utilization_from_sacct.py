@@ -274,7 +274,7 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
         gpu_sacct_df['FracNode'] = gpu_sacct_df.apply(lambda x: max(x.ReqCPUS / CPUS_PER_NODE['gpu'], x.ReqMem / MEM_PER_NODE['gpu'], x.ReqGPUS/GPUS_PER_NODE), axis=1)
 
         # create new column for fractional node * time
-        gpu_sacct_df['FracNodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis=1)
+        gpu_sacct_df['FracNodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
 
         total_nodedays_allocated = gpu_sacct_df['FracNodeSeconds'].sum() / SECS_PER_DAY
 
@@ -312,7 +312,7 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         gpu_util = su_util
 
-    return gpu_util
+    return gpu_util, gpu_sacct_df
 
 
 def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=None):
@@ -438,7 +438,7 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         bm_util = su_util
 
-    return bm_util
+    return bm_util, bm_sacct_df
 
 
 def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=None):
@@ -531,7 +531,7 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         def_util = su_util
 
-    return def_util
+    return def_util, def_sacct_df
 
 
 def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=UtilMethod.BY_NODE):
@@ -551,6 +551,10 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
     gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
     bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
 
+    def_sacct_df['NodeType'] = 'standard'
+    gpu_sacct_df['NodeType'] = 'gpu'
+    bm_sacct_df['NodeType'] = 'bigmem'
+
     if DEBUG_P:
         print(f'DEBUG: utilization(): def_sacct_df.nunique() = \n{def_sacct_df.nunique()}')
         print(f'DEBUG: utilization(): gpu_sacct_df.nunique() = \n{gpu_sacct_df.nunique()}')
@@ -566,7 +570,7 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
     return utilization
 
 
-def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=None):
+def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=UtilMethod.BY_BILLING):
     global DEBUG_P
 
     if DEBUG_P:
@@ -593,116 +597,130 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
     # 26  2826716_11       bellamyprj       def   67855.0        4     4G        billing=4,cpu=4,mem=4G,node=1      billing=4,cpu=4,node=1
     # 29  2826716_12       bellamyprj       def   67781.0        4     4G        billing=4,cpu=4,mem=4G,node=1      billing=4,cpu=4,node=1
 
-    # WANT per account, and per node type utilization as fraction of node
-    # - merge partitions: def & long -> std; gpu & gpulong -> gpu; bm (no change)
-    # - create a new column "NodeSeconds"
-
-    standard_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
-
-    gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
-    # drop rows without "gres/gpu=" since some jobs in gpu
-    # partition did not request gres/gpu
-    gpu_sacct_df = gpu_sacct_df[sacct_df['ReqTRES'].str.contains('gres/gpu=', regex=False)].copy()
-
-    bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
-
-    # need to convert ReqMem field to GiB; values read in are
-    # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
-    standard_sacct_df['ReqMem'] = standard_sacct_df['ReqMem'].apply(convert_to_GiB)
-    standard_sacct_df['NodeType'] = 'standard'
-    gpu_sacct_df['ReqMem'] = gpu_sacct_df['ReqMem'].apply(convert_to_GiB)
-    gpu_sacct_df['NodeType'] = 'gpu'
-    bm_sacct_df['ReqMem'] = bm_sacct_df['ReqMem'].apply(convert_to_GiB)
-    bm_sacct_df['NodeType'] = 'bigmem'
-
-    # want new column ReqGPUS (i.e. no. of GPUs requested)
-    gpu_sacct_df['ReqGPUS'] = gpu_sacct_df['AllocTRES'].str.extract(r'gres/gpu=(\d+)')
-    gpu_sacct_df['ReqGPUS'] = pd.to_numeric(gpu_sacct_df['ReqGPUS'])
-
-    # create new column for by-node usage: max(fraction of cores, fraction of memory); or max(frac. of cores, frac. of mem., frac. of GPUs)
-    standard_sacct_df['FracNode'] = standard_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['def'], row.ReqMem / MEM_PER_NODE['def']), axis='columns')
-    gpu_sacct_df['FracNode'] = gpu_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['gpu'], row.ReqMem / MEM_PER_NODE['gpu'], float(row.ReqGPUS) / GPUS_PER_NODE), axis='columns')
-    bm_sacct_df['FracNode'] = bm_sacct_df.apply(lambda row: max(float(row.ReqCPUS) / CPUS_PER_NODE['bm'], row.ReqMem / MEM_PER_NODE['bm']), axis='columns')
-
-    # create new column for fractional node * time
-    standard_sacct_df['NodeSeconds'] = standard_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
-    gpu_sacct_df['NodeSeconds'] = gpu_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
-    bm_sacct_df['NodeSeconds'] = bm_sacct_df[['Elapsed', 'FracNode']].product(axis='columns')
-
-    usage_df = pd.concat([standard_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
-                          gpu_sacct_df[['Account', 'NodeType', 'NodeSeconds']],
-                          bm_sacct_df[['Account', 'NodeType', 'NodeSeconds']]])
-
-    # convert to NodeHours
-    usage_df['NodeHours'] = usage_df.apply(lambda row: row.NodeSeconds / SECS_PER_HOUR, axis='columns')
-
-    if DEBUG_P:
-        print(usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum())
-
     start_date_str = f'{start_date.year}{start_date.month:02d}'
     end_date_str = f'{end_date.year}{end_date.month:02d}'
 
-    usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index().to_csv(f'usage_by_account_{start_date_str}_{end_date_str}.csv')
+    if util_method == UtilMethod.BY_NODE:
+        usage_df = pd.concat([def_sacct_df[['Account', 'NodeType', 'FracNodeSeconds']],
+                            gpu_sacct_df[['Account', 'NodeType', 'FracNodeSeconds']],
+                            bm_sacct_df[['Account', 'NodeType', 'FracNodeSeconds']]])
 
-    usage_df['TotalNodeHours'] = usage_df[['Account', 'NodeType', 'NodeHours']].groupby('Account')['NodeHours'].transform(sum)
+        # convert to NodeHours
+        usage_df['NodeHours'] = usage_df.apply(lambda row: row.FracNodeSeconds / SECS_PER_HOUR, axis='columns')
 
-    if DEBUG_P:
-        print(usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False))
+        if DEBUG_P:
+            print(usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum())
 
-    # save CSV
-    usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False).to_csv(f'usage_by_account_totals_{start_date_str}_{end_date_str}.csv')
+        usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index().to_csv(f'usage_by_account_{start_date_str}_{end_date_str}.csv')
 
-    usage_df = usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index()
-    usage_df = usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').fillna(0)
+        usage_df['TotalNodeHours'] = usage_df[['Account', 'NodeType', 'NodeHours']].groupby('Account')['NodeHours'].transform(sum)
 
-    # save CSV
-    usage_df.to_csv(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.csv')
+        if DEBUG_P:
+            print(usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False))
 
-    usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
-    usage_df.reset_index(inplace=True)
-    usage_df['TotalNodeHours'] = usage_df['bigmem'] + usage_df['gpu'] + usage_df['standard']
-    usage_df['GPUStandardHours'] = usage_df['gpu'] + usage_df['standard']
-    usage_df.sort_values(by=['TotalNodeHours'], ascending=False, inplace=True)
-    # want only groups which used more than 1 node-hour per month
-    delta_t = Delorean(end_date, timezone='UTC') - Delorean(start_date, timezone='UTC')
-    n_months = int(delta_t.total_seconds() / SECS_PER_DAY / 30.)
-    foo_df = usage_df.query(f'TotalNodeHours > {n_months}').sort_values(by=['TotalNodeHours'], ascending=False)
+        # save CSV
+        usage_df[['Account', 'TotalNodeHours']].drop_duplicates().sort_values(by=['TotalNodeHours'], ascending=False).to_csv(f'usage_by_account_totals_{start_date_str}_{end_date_str}.csv')
 
-    if DEBUG_P:
-        print('DEBUG: foo_df = ')
-        print(foo_df.head(5))
-        print(foo_df[foo_df['Account'] == 'urbancmriprj'])
-        foo_df.to_csv('foo.csv')
+        usage_df = usage_df[['Account', 'NodeType', 'NodeHours']].groupby(['Account', 'NodeType']).sum().reset_index()
+        usage_df = usage_df.pivot(index='Account', columns='NodeType', values='NodeHours').fillna(0)
 
-    # seaborn plot
-    # 3 bars: bigmem, gpu, standard
-    sns.set_theme()  # set seqborn defaults
-    sns.set_style('whitegrid')
-    sns.color_palette('colorblind')
-    sns.set(rc={'figure.figsize': (10., 7.5)})
-    sns.set_context('paper', rc={'font.size': 8})
+        # save CSV
+        usage_df.to_csv(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.csv')
 
-    paper_dims = (11., 8.5)
-    fig, ax = plt.subplots(figsize=paper_dims)
+        usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
+        usage_df.reset_index(inplace=True)
+        usage_df['TotalNodeHours'] = usage_df['bigmem'] + usage_df['gpu'] + usage_df['standard']
+        usage_df['GPUStandardHours'] = usage_df['gpu'] + usage_df['standard']
+        usage_df.sort_values(by=['TotalNodeHours'], ascending=False, inplace=True)
+        # want only groups which used more than 1 node-hour per month
+        delta_t = Delorean(end_date, timezone='UTC') - Delorean(start_date, timezone='UTC')
+        n_months = int(delta_t.total_seconds() / SECS_PER_DAY / 30.)
+        output_df = usage_df.query(f'TotalNodeHours > {n_months}').sort_values(by=['TotalNodeHours'], ascending=False)
 
-    # stack the bars right to left (layered bottom to top)
-    # first one is bigmem
-    sns.barplot(ax=ax, data=foo_df, x='TotalNodeHours', y='Account', color='steelblue')
-    # second one is gpu
-    sns.barplot(ax=ax, data=foo_df, x='GPUStandardHours', y='Account', color='olivedrab')
-    # third one is standard
-    sns.barplot(ax=ax, data=foo_df, x='standard', y='Account', color='gold')
-    bigmem_bar = mpatches.Patch(color='steelblue', label='bigmem')
-    gpu_bar = mpatches.Patch(color='olivedrab', label='gpu')
-    standard_bar = mpatches.Patch(color='gold', label='standard')
-    plt.legend(handles=[standard_bar, gpu_bar, bigmem_bar], loc='lower right')
-    plt.xlabel('Node-Hours')
-    plt.ylabel('Account')
-    title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
-    plt.title(f'Picotte usage by account (>1 node-hr per month) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
-    plt.savefig(f'usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
-    plt.clf()
+        if DEBUG_P:
+            print('DEBUG: output_df = ')
+            print(output_df.head(5))
+            print(output_df[output_df['Account'] == 'urbancmriprj'])
+            output_df.to_csv('foo.csv')
 
+        # seaborn plot
+        # 3 bars: bigmem, gpu, standard
+        sns.set_theme()  # set seqborn defaults
+        sns.set_style('whitegrid')
+        sns.color_palette('colorblind')
+        sns.set(rc={'figure.figsize': (10., 7.5)})
+        sns.set_context('paper', rc={'font.size': 8})
+
+        paper_dims = (11., 8.5)
+        fig, ax = plt.subplots(figsize=paper_dims)
+
+        # stack the bars right to left (layered bottom to top)
+        # first one is bigmem
+        sns.barplot(ax=ax, data=output_df, x='TotalNodeHours', y='Account', color='steelblue')
+        # second one is gpu
+        sns.barplot(ax=ax, data=output_df, x='GPUStandardHours', y='Account', color='olivedrab')
+        # third one is standard
+        sns.barplot(ax=ax, data=output_df, x='standard', y='Account', color='gold')
+        bigmem_bar = mpatches.Patch(color='steelblue', label='bigmem')
+        gpu_bar = mpatches.Patch(color='olivedrab', label='gpu')
+        standard_bar = mpatches.Patch(color='gold', label='standard')
+        plt.legend(handles=[standard_bar, gpu_bar, bigmem_bar], loc='lower right')
+        plt.xlabel('Node-Hours')
+        plt.ylabel('Account')
+        title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
+        plt.title(f'Picotte node usage by account (>1 node-hr per month) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+        plt.savefig(f'node_usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
+        plt.clf()
+    elif util_method == UtilMethod.BY_RESOURCE:
+        print('No account utilization by resource')
+    elif util_method == UtilMethod.BY_BILLING:
+        usage_df = pd.concat([def_sacct_df[['Account', 'NodeType', 'SU']],
+                            gpu_sacct_df[['Account', 'NodeType', 'SU']],
+                            bm_sacct_df[['Account', 'NodeType', 'SU']]])
+        print('DEBUG: usage_by_account(): usage_df')
+        print(usage_df.describe())
+        print(usage_df.head(10))
+
+        usage_df['TotalSU'] = usage_df[['Account', 'NodeType', 'SU']].groupby('Account')['SU'].transform(sum)
+        usage_df = usage_df[['Account', 'NodeType', 'SU']].groupby(['Account', 'NodeType']).sum().reset_index()
+        usage_df = usage_df.pivot(index='Account', columns='NodeType', values='SU').fillna(0)
+        usage_df.columns = [''.join(str(s).strip() for s in col if s) for col in usage_df.columns]
+        usage_df.reset_index(inplace=True)
+        usage_df['TotalSU'] = usage_df['bigmem'] + usage_df['gpu'] + usage_df['standard']
+        usage_df['GPUSU'] = usage_df['gpu'] + usage_df['standard']
+        usage_df.sort_values(by=['TotalSU'], ascending=False, inplace=True)
+
+        # want only groups which used more than 48 SU per month
+        output_df = usage_df.query(f'TotalSU > 48').sort_values(by=['TotalSU'], ascending=False)
+
+        # seaborn plot
+        # 3 bars: bigmem, gpu, standard
+        sns.set_theme()  # set seqborn defaults
+        sns.set_style('whitegrid')
+        sns.color_palette('colorblind')
+        sns.set(rc={'figure.figsize': (10., 7.5)})
+        sns.set_context('paper', rc={'font.size': 8})
+
+        paper_dims = (11., 8.5)
+        fig, ax = plt.subplots(figsize=paper_dims)
+
+        # stack the bars right to left (layered bottom to top)
+        # first one is bigmem
+        sns.barplot(ax=ax, data=output_df, x='TotalSU', y='Account', color='steelblue')
+        # second one is gpu
+        sns.barplot(ax=ax, data=output_df, x='GPUSU', y='Account', color='olivedrab')
+        # third one is standard
+        sns.barplot(ax=ax, data=output_df, x='standard', y='Account', color='gold')
+        bigmem_bar = mpatches.Patch(color='steelblue', label='bigmem')
+        gpu_bar = mpatches.Patch(color='olivedrab', label='gpu')
+        standard_bar = mpatches.Patch(color='gold', label='standard')
+        plt.legend(handles=[standard_bar, gpu_bar, bigmem_bar], loc='lower right')
+        plt.xlabel('SU')
+        plt.ylabel('Account')
+        title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
+        plt.title(f'Picotte SU usage by account (>48 SU per month) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+        plt.savefig(f'su_usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
+        plt.clf()
 
 def read_sacct(filenames):
     global DEBUG_P
@@ -886,15 +904,15 @@ def main():
 
     util = {}
     util['general'], uptime_secs = sreport_utilization(start_date, end_date)
-    util['gpu'] = utilization('gpu', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
-    util['bm'] = utilization('bm', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
-    util['def'] = utilization('def', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
+    util['def'], def_sacct_df = utilization('def', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
+    util['gpu'], gpu_sacct_df = utilization('gpu', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
+    util['bm'], bm_sacct_df = utilization('bm', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
     print()
 
     if DEBUG_P:
         print(f'DEBUG: util = {util}')
 
-    usage_by_account(sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
+    usage_by_account(def_sacct_df=def_sacct_df, gpu_sacct_df=gpu_sacct_df, bm_sacct_df=bm_sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
 
 if __name__ == '__main__':
     main()
