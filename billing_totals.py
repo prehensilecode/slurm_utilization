@@ -10,6 +10,9 @@ from delorean import Delorean
 from datetime import datetime, timedelta
 import calendar
 import argparse
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 
 DEBUG_P = True
@@ -24,6 +27,7 @@ def read_charges(filenames):
         print()
 
     charges_df = pd.concat((pd.read_csv(f, delimiter=',') for f in filenames), ignore_index=True)
+    charges_df.reindex()
 
     if DEBUG_P:
         print(f'DEBUG: read_charges(): describe\n{charges_df.describe()}')
@@ -126,9 +130,44 @@ def main():
 
     charges_df = read_charges(filenames)
 
-    sum_charges_df = charges_df[['Project', 'Total charge ($)']].groupby('Project').sum()
+    if DEBUG_P:
+        print(f'DEBUG: main(): charges_df.describe() =\n{charges_df.describe()}')
+        print()
+        print(f'DEBUG: main(): charges_df.head(10) =\n{charges_df.head(10)}')
+        print()
 
-    print(sum_charges_df.sort_values(by=['Total charge ($)'], ascending=False))
+    sum_charges_df = charges_df[['Project', 'Total charge ($)']].groupby('Project').sum().sort_values(by=['Total charge ($)'], ascending=False).reset_index()
+
+    sum_charges_df = sum_charges_df[sum_charges_df['Total charge ($)'] > 0.]
+
+    if DEBUG_P:
+        print(f'DEBUG: main(): sum_charges_df.describe() =\n{sum_charges_df.describe()}')
+        print()
+        print(f'DEBUG: main(): sum_charges_df.head(10) =\n{sum_charges_df.head(10)}')
+        print()
+
+    with open(f'total_charges_{date_strings[0]}-{date_strings[-1]}.csv', 'w') as f:
+        sum_charges_df.to_csv(f)
+
+    # seaborn plot
+    # 3 bars: bigmem, gpu, standard
+    sns.set_theme()  # set seqborn defaults
+    sns.set_style('whitegrid')
+    sns.color_palette('colorblind')
+    sns.set(rc={'figure.figsize': (10., 7.5)})
+    sns.set_context('paper', rc={'font.size': 8})
+
+    paper_dims = (11., 8.5)
+    fig, ax = plt.subplots(figsize=paper_dims)
+
+    sns.barplot(ax=ax, data=sum_charges_df, x='Total charge ($)', y='Project', color='steelblue')
+
+    plt.xlabel('Total charge ($)')
+    plt.ylabel('Account')
+    title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
+    plt.title(f'Picotte charges by account {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+    plt.savefig(f'total_charges_plot_{date_strings[0]}-{date_strings[-1]}.png', dpi=300)
+    plt.clf()
 
 
 if __name__ == '__main__':
