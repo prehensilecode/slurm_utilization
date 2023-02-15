@@ -677,9 +677,11 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
         usage_df = pd.concat([def_sacct_df[['Account', 'NodeType', 'SU']],
                             gpu_sacct_df[['Account', 'NodeType', 'SU']],
                             bm_sacct_df[['Account', 'NodeType', 'SU']]])
-        print('DEBUG: usage_by_account(): usage_df')
-        print(usage_df.describe())
-        print(usage_df.head(10))
+
+        if DEBUG_P:
+            print('DEBUG: usage_by_account(): usage_df')
+            print(usage_df.describe())
+            print(usage_df.head(10))
 
         usage_df['TotalSU'] = usage_df[['Account', 'NodeType', 'SU']].groupby('Account')['SU'].transform(sum)
         usage_df = usage_df[['Account', 'NodeType', 'SU']].groupby(['Account', 'NodeType']).sum().reset_index()
