@@ -411,8 +411,7 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
 
-        if DEBUG_P:
-            print(f'Node utilization: {node_util:.2f} %')
+        print(f'Node utilization: {node_util:.2f} %')
 
         # summary stats
         print()
