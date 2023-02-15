@@ -667,7 +667,7 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
         plt.xlabel('Node-Hours')
         plt.ylabel('Account')
         title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
-        plt.title(f'Picotte node usage by account (>1 node-hr) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+        plt.title(f'Picotte node compute usage by account (>1 node-hr) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
         plt.savefig(f'node_usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
         plt.clf()
     elif util_method == UtilMethod.BY_RESOURCE:
@@ -725,7 +725,7 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
         plt.xlabel('SU')
         plt.ylabel('Account')
         title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
-        plt.title(f'Picotte SU usage by account (>48 SU) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+        plt.title(f'Picotte compute SU usage by account (>48 SU) {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
         plt.savefig(f'su_usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.png', dpi=300)
         plt.clf()
 
