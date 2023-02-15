@@ -72,6 +72,9 @@ MEM_PER_NODE = {'def': 189., 'gpu': 189., 'bm': 1510.}
 # GPUs per node
 GPUS_PER_NODE = 4.
 
+# billing per node
+BILLING_PER_NODE = {'def': 48., 'gpu': 43. * 4., 'bm': 68. * 1.51}
+
 # Nodes per partition
 NODES_PER_PARTITION = {'def': 74., 'gpu': 12., 'bm': 2.}
 
@@ -293,7 +296,21 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         gpu_util = node_util
     elif util_method == UtilMethod.BY_BILLING:
+        max_su = BILLING_PER_NODE['gpu'] * max_nodedays
+        total_su_allocated = gpu_sacct_df['SU'].sum() / HOURS_PER_DAY
+
         gpu_util = 0.
+
+        print()
+        print(f'GPU NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
+        print(f'No. of jobs:  {len(gpu_sacct_df.index):,}')
+        print(f'Total avail.: {max_su:.5e} SU')
+        print(f'Allocated:    {total_su_allocated:.5e} SU')
+
+        su_util = total_su_allocated / max_su * 100.
+        print(f'SU utilization: {su_util:.2f} %')
+
+        gpu_util = su_util
 
     return gpu_util
 
@@ -386,12 +403,11 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         node_util = 0.
 
-        if DEBUG_P:
-            print()
-            print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
-            print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
-            print(f'Total avail.: {max_nodedays:.5e} node-days')
-            print(f'Allocated:    {total_nodedays_allocated:.5e} node-days')
+        print()
+        print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
+        print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
+        print(f'Total avail.: {max_nodedays:.5e} node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
 
@@ -406,7 +422,21 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
 
         bm_util = node_util
     elif util_method == UtilMethod.BY_BILLING:
+        max_su = BILLING_PER_NODE['bm'] * max_nodedays
+        total_su_allocated = bm_sacct_df['SU'].sum() / HOURS_PER_DAY
+
         bm_util = 0.
+
+        print()
+        print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
+        print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
+        print(f'Total avail.: {max_su:.5e} SU')
+        print(f'Allocated:    {total_su_allocated:.5e} SU')
+
+        su_util = total_su_allocated / max_su * 100.
+        print(f'SU utilization: {su_util:.2f} %')
+
+        bm_util = su_util
 
     return bm_util
 
@@ -428,13 +458,13 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         # no. of nodes * no. of cores per node * tot. days
         max_nodedays = nodedays('def', uptime_secs)
 
-    max_cpudays = CPUS_PER_NODE['def'] * max_nodedays
 
     # create a CPUseconds column
     def_sacct_df['CPUseconds'] = def_sacct_df[['Elapsed', 'ReqCPUS']].product(axis=1)
 
     def_util = 0.
     if util_method == UtilMethod.BY_RESOURCE:
+        max_cpudays = CPUS_PER_NODE['def'] * max_nodedays
         total_cpudays_allocated = def_sacct_df['CPUseconds'].sum() / SECS_PER_DAY
 
         cpu_util = 0.
@@ -485,7 +515,21 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
 
         def_util = node_util
     elif util_method == UtilMethod.BY_BILLING:
+        max_su = BILLING_PER_NODE['def'] * max_nodedays
+        total_su_allocated = def_sacct_df['SU'].sum() / HOURS_PER_DAY
+
         def_util = 0.
+
+        print()
+        print(f'STANDARD NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
+        print(f'No. of jobs:  {len(def_sacct_df.index):,}')
+        print(f'Total avail.: {max_su:.5e} SU')
+        print(f'Allocated:    {total_su_allocated:.5e} SU')
+
+        su_util = total_su_allocated / max_su * 100.
+        print(f'SU utilization: {su_util:.2f} %')
+
+        def_util = su_util
 
     return def_util
 
@@ -829,6 +873,10 @@ def main():
     # add Billing column
     sacct_df['Billing'] = sacct_df['AllocTRES'].str.extract(r'billing=(\d+)')
     sacct_df['Billing'] = pd.to_numeric(sacct_df['Billing'])
+
+    # create SU column = Billing * Elapsed (in hours)
+    sacct_df['SU'] = sacct_df[['Elapsed', 'Billing']].product(axis='columns')
+    sacct_df['SU'] = sacct_df['SU'] / SECS_PER_HOUR
 
     sacct_df.to_pickle(f'sacct_df_{date_strings[0]}_{date_strings[-1]}.pkl')
 
