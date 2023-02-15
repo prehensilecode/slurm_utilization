@@ -18,6 +18,7 @@ import sys
 import os
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
 from enum import Enum
 import pandas as pd
 import delorean
@@ -47,6 +48,18 @@ SECS_PER_DAY = 86400.
 # seconds per hour
 SECS_PER_HOUR = 3600.
 
+# minutes per hour
+MINS_PER_HOUR = 60.
+
+# seconds per minute
+SECS_PER_MINUTE = 60.
+
+# hours per day
+HOURS_PER_DAY = 24.
+
+# minutes per day
+MINS_PER_DAY = MINS_PER_HOUR * HOURS_PER_DAY
+
 #
 # Resources per node; keys are partition names
 #
@@ -61,6 +74,9 @@ GPUS_PER_NODE = 4.
 
 # Nodes per partition
 NODES_PER_PARTITION = {'def': 74., 'gpu': 12., 'bm': 2.}
+
+# Total no. of nodes
+TOTAL_NODES = NODES_PER_PARTITION['def'] + NODES_PER_PARTITION['gpu'] + NODES_PER_PARTITION['bm']
 
 # Utilization by fraction of node
 # - want to capture fraction of node utilized; e.g. a job in def partition
@@ -108,10 +124,10 @@ def sreport_utilization(start_date=None, end_date=None):
     orig_end_date = end_date
     orig_end_date_str = f'{orig_end_date.year}-{orig_end_date.month:02d}-01'
 
-    # DEBUG
-    print(f'DEBUG: sreport_utilization(): start_date = {start_date.year}-{start_date.month:02d}')
-    print(f'DEBUG: sreport_utilization(): end_date = {end_date.year}-{end_date.month:02d}')
-    print(f'DEBUG: sreport_utilization(): orig_end_date = {orig_end_date.year}-{orig_end_date.month:02d}')
+    if DEBUG_P:
+        print(f'DEBUG: sreport_utilization(): start_date = {start_date.year}-{start_date.month:02d}')
+        print(f'DEBUG: sreport_utilization(): end_date = {end_date.year}-{end_date.month:02d}')
+        print(f'DEBUG: sreport_utilization(): orig_end_date = {orig_end_date.year}-{orig_end_date.month:02d}')
 
     # sreport start/end period is exclusive, so must add one month
     if end_date.month == 12:
@@ -140,30 +156,33 @@ def sreport_utilization(start_date=None, end_date=None):
         print(f'DEBUG: sreport_utilization: colvals = {colvals}')
         print(f'DEBUG: sreport_utilization: sreport_dict = {sreport_dict}')
 
-    # sreport displays CPU-minutes; want CPU-days
-    minutes_per_day  = 24. * 60.
-
     utilization = sreport_dict["Allocated"]/sreport_dict["Reported"] * 100.
-    reported_minutes = sreport_dict["Reported"] / (88. * 48.)
+    # all nodes have 48 cpu cores
+    reported_secs = sreport_dict["Reported"] * SECS_PER_MINUTE / (TOTAL_NODES * CPUS_PER_NODE['def'])
 
     if DEBUG_P:
-        print(f'DEBUG: sreport_utilization: reported_minutes (to days) = {reported_minutes/(24.*60.)}')
+        print(f'DEBUG: sreport_utilization: reported_secs (to days) = {reported_secs/SECS_PER_DAY}')
+
+    cpu_mins_per_day = MINS_PER_DAY * TOTAL_NODES * CPUS_PER_NODE["def"]
 
     print()
-    print(f'CLUSTER UTILIZATION from sreport ({start_date.year}-{start_date.month:02d} -- {orig_end_date.year}-{orig_end_date.month:02d} inclusive)')
-    print(f'Reported:     {sreport_dict["Reported"] / minutes_per_day:.05e} CPU-days')
-    print(f'Allocated:    {sreport_dict["Allocated"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Allocated"]/sreport_dict["Reported"]*100.:5.02f}%)')
-    print(f'Down:         {sreport_dict["Down"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Down"]/sreport_dict["Reported"]*100.:5.02f}%)')
-    print(f'Planned down: {sreport_dict["PLND Down"] / minutes_per_day:.05e} CPU-days')
-    print(f'Idle:         {sreport_dict["Idle"] / minutes_per_day:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%)')
+    print(f'CLUSTER UTILIZATION from sreport based only on CPU usage ({start_date.year}-{start_date.month:02d} -- {orig_end_date.year}-{orig_end_date.month:02d} inclusive)')
+    print(f'Reported:     {sreport_dict["Reported"] / MINS_PER_DAY:.05e} CPU-days - equiv. to {sreport_dict["Reported"] / cpu_mins_per_day:5.2f} days')
+    print(f'Allocated:    {sreport_dict["Allocated"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Allocated"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Allocated"] / cpu_mins_per_day:5.2f} days')
+    print(f'Down:         {sreport_dict["Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Down"] / cpu_mins_per_day:5.2f} days')
+    print(f'Planned down: {sreport_dict["PLND Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["PLND Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["PLND Down"] / cpu_mins_per_day:5.2f} days')
+    print(f'Idle:         {sreport_dict["Idle"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Idle"] / cpu_mins_per_day:5.2f} days')
     print(f'Utilization:  {utilization:.02f} %')
 
-    return utilization, reported_minutes
+    return utilization, reported_secs
 
 
 def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=None):
     global DEBUG_P
     global SECS_PER_DAY
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df.nunique() before filtering =\n{gpu_sacct_df.nunique()}')
 
     tres_of_interest = 'gres/gpu'
 
@@ -174,7 +193,10 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
     # partition did not request gres/gpu
     gpu_sacct_df = gpu_sacct_df[gpu_sacct_df['ReqTRES'].str.contains(f'{tres_of_interest}=', regex=False)].copy()
 
+
     if DEBUG_P:
+        print(f'DEBUG: utilization_gpu(): gpu_sacct_df.nunique() after filtering =\n{gpu_sacct_df.nunique()}')
+
         print('DEBUG utilization_gpu(): gpu_sacct_df.head(20)')
         print(gpu_sacct_df.head(20))
         print('')
@@ -258,8 +280,8 @@ def utilization_gpu(gpu_sacct_df=None, uptime_secs=None, start_date=None, end_da
         print()
         print(f'GPU NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
         print(f'No. of jobs:  {len(gpu_sacct_df.index):,}')
-        print(f'Total avail.: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
+        print(f'Total avail.: {max_nodedays:.5e} node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
         print(f'Node utilization: {node_util:.2f} %')
@@ -280,10 +302,10 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
     global DEBUG_P
     global SECS_PER_DAY
 
-    # DEBUG
-    print(f'DEBUG: utilization_bm(): uptime_secs = {uptime_secs} = {uptime_secs / 3600. / 24.} days')
-    print(f'DEBUG: utilization_bm(): start_date = {start_date}')
-    print(f'DEBUG: utilization_bm():   end_date = {end_date}')
+    if DEBUG_P:
+        print(f'DEBUG: utilization_bm(): uptime_secs = {uptime_secs} = {uptime_secs / 3600. / 24.} days')
+        print(f'DEBUG: utilization_bm(): start_date = {start_date}')
+        print(f'DEBUG: utilization_bm():   end_date = {end_date}')
 
     # need to convert ReqMem field to GiB; values read in are
     # strings with last character being K,M,G,T, etc (why isn't it "k" instead of "K"?)
@@ -302,8 +324,8 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
         # no. nodes * mem. per node (~1.5 TiB = 1546 GiB) * tot. seconds
         max_memseconds = 2. * 1546. * uptime_secs
 
-    # DEBUG
-    print(f'DEBUG: utilization_bm(): max_memseconds = {max_memseconds}')
+    if DEBUG_P:
+        print(f'DEBUG: utilization_bm(): max_memseconds = {max_memseconds}')
 
     if not uptime_secs:
         # N.B. this does not take downtime into account
@@ -357,20 +379,24 @@ def utilization_bm(bm_sacct_df=None, uptime_secs=None, start_date=None, end_date
         # create new column for fractional node * time
         bm_sacct_df['FracNodeSeconds'] = bm_sacct_df[['Elapsed', 'FracNode']].product(axis=1)
 
-        print(f'DEBUG: utilization_bm(): bm_sacct_df = \n{bm_sacct_df}')
+        if DEBUG_P:
+            print(f'DEBUG: utilization_bm(): bm_sacct_df = \n{bm_sacct_df}')
 
         total_nodedays_allocated = bm_sacct_df['FracNodeSeconds'].sum() / SECS_PER_DAY
 
         node_util = 0.
 
-        print()
-        print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
-        print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
-        print(f'Total avail.: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
+        if DEBUG_P:
+            print()
+            print(f'BIGMEM NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
+            print(f'No. of jobs:  {len(bm_sacct_df.index):,}')
+            print(f'Total avail.: {max_nodedays:.5e} node-days')
+            print(f'Allocated:    {total_nodedays_allocated:.5e} node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
-        print(f'Node utilization: {node_util:.2f} %')
+
+        if DEBUG_P:
+            print(f'Node utilization: {node_util:.2f} %')
 
         # summary stats
         print()
@@ -446,8 +472,8 @@ def utilization_def(def_sacct_df=None, uptime_secs=None, start_date=None, end_da
         print()
         print(f'STANDARD NODE UTILIZATION ({start_date.year}-{start_date.month:02d} -- {end_date.year}-{end_date.month:02d} inclusive)')
         print(f'No. of jobs:  {len(def_sacct_df.index):,}')
-        print(f'Total avail.: {max_nodedays:.5e} Node-days')
-        print(f'Allocated:    {total_nodedays_allocated:.5e} Node-days')
+        print(f'Total avail.: {max_nodedays:.5e} node-days')
+        print(f'Allocated:    {total_nodedays_allocated:.5e} node-days')
 
         node_util = total_nodedays_allocated / max_nodedays * 100.
         print(f'Node utilization: {node_util:.2f} %')
@@ -480,6 +506,11 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
     def_sacct_df = sacct_df[(sacct_df['Partition'] == 'def') | (sacct_df['Partition'] == 'long')].copy(deep=True)
     gpu_sacct_df = sacct_df[(sacct_df['Partition'] == 'gpu') | (sacct_df['Partition'] == 'gpulong')].copy(deep=True)
     bm_sacct_df = sacct_df[(sacct_df['Partition'] == 'bm')].copy(deep=True)
+
+    if DEBUG_P:
+        print(f'DEBUG: utilization(): def_sacct_df.nunique() = \n{def_sacct_df.nunique()}')
+        print(f'DEBUG: utilization(): gpu_sacct_df.nunique() = \n{gpu_sacct_df.nunique()}')
+        print(f'DEBUG: utilization():  bm_sacct_df.nunique() = \n{bm_sacct_df.nunique()}')
 
     if partition == 'def':
         utilization = utilization_def(def_sacct_df, uptime_secs, start_date, end_date, util_method)
@@ -629,7 +660,6 @@ def usage_by_account(sacct_df=None, uptime_secs=None, start_date=None, end_date=
     plt.clf()
 
 
-
 def read_sacct(filenames):
     global DEBUG_P
 
@@ -734,9 +764,9 @@ def main():
         dates.append(start_date)
     date_strings = [f'{d.year}{d.month:02d}' for d in dates]
 
-    # DEBUG
-    print(f'DEBUG: main(): dates = {dates}')
-    print(f'DEBUG: main(): date_strings = {date_strings}')
+    if DEBUG_P:
+        print(f'DEBUG: main(): dates = {dates}')
+        print(f'DEBUG: main(): date_strings = {date_strings}')
 
     # List of partitions
     partitions = ['def', 'gpu', 'bm']
@@ -747,9 +777,9 @@ def main():
         for dstr in date_strings:
             filenames.append(f'{args.data_dir}/sacct_{p}_{dstr}.csv')
 
-    # DEBUG
-    for f in filenames:
-        print(f'DEBUG: main(): filenames : {f}')
+    if DEBUG_P:
+        for f in filenames:
+            print(f'DEBUG: main(): filenames : {f}')
 
     sacct_df = read_sacct(filenames)
 
@@ -776,6 +806,17 @@ def main():
     # keep only jobs not by urcftestprj
     sacct_df = sacct_df[sacct_df['Account'] != 'urcftestprj']
 
+    # N.B. sorting not necessary to drop duplicates
+
+    if DEBUG_P:
+        print(f'DEBUG: main(): no. of duplicated rows: {len(sacct_df[sacct_df.duplicated(subset=["JobID"], keep=False)].index)}')
+
+    # drop duplicates
+    sacct_df.drop_duplicates(subset=['JobID'], inplace=True, ignore_index=True)
+
+    if DEBUG_P:
+        print(f'DEBUG: main(): no. of duplicated rows after drop_duplicates(): {len(sacct_df[sacct_df.duplicated(subset=["JobID"], keep=False)].index)}')
+
     # format the Elapsed field
     sacct_df['Elapsed'].replace(to_replace=r'\-', value=' days ', regex=True, inplace=True)
 
@@ -789,10 +830,6 @@ def main():
     sacct_df['Billing'] = sacct_df['AllocTRES'].str.extract(r'billing=(\d+)')
     sacct_df['Billing'] = pd.to_numeric(sacct_df['Billing'])
 
-    # print out number of unique values in columns
-    print('No. of unique values:')
-    print(sacct_df.nunique())
-
     sacct_df.to_pickle(f'sacct_df_{date_strings[0]}_{date_strings[-1]}.pkl')
 
     if DEBUG_P:
@@ -800,8 +837,7 @@ def main():
         print(sacct_df.info())
 
     util = {}
-    util['general'], uptime_minutes = sreport_utilization(start_date, end_date)
-    uptime_secs = uptime_minutes * 60.
+    util['general'], uptime_secs = sreport_utilization(start_date, end_date)
     util['gpu'] = utilization('gpu', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
     util['bm'] = utilization('bm', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
     util['def'] = utilization('def', sacct_df=sacct_df, uptime_secs=uptime_secs, start_date=start_date, end_date=end_date, util_method=util_method)
