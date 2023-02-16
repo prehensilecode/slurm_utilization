@@ -136,9 +136,11 @@ def main():
         print(f'DEBUG: main(): charges_df.head(10) =\n{charges_df.head(10)}')
         print()
 
-    sum_charges_df = charges_df[['Project', 'Total charge ($)']].groupby('Project').sum().sort_values(by=['Total charge ($)'], ascending=False).reset_index()
+    sum_charges_df = charges_df[['Project', 'CPU charge ($)', 'Storage charge ($)', 'Total charge ($)']].groupby('Project').sum().sort_values(by=['Total charge ($)'], ascending=False).reset_index()
 
     sum_charges_df = sum_charges_df[sum_charges_df['Total charge ($)'] > 0.]
+
+    sum_charges_df.columns = ['Project', 'Compute charge ($)',  'Storage charge ($)',  'Total charge ($)']
 
     if DEBUG_P:
         print(f'DEBUG: main(): sum_charges_df.describe() =\n{sum_charges_df.describe()}')
@@ -149,8 +151,8 @@ def main():
     with open(f'total_charges_{date_strings[0]}-{date_strings[-1]}.csv', 'w') as f:
         sum_charges_df.to_csv(f)
 
-    # seaborn plot
-    # 3 bars: bigmem, gpu, standard
+    # seaborn horizontal stacked bar plot
+    # 2 bars: compute, storage
     sns.set_theme()  # set seqborn defaults
     sns.set_style('whitegrid')
     sns.color_palette('colorblind')
@@ -160,12 +162,22 @@ def main():
     paper_dims = (11., 8.5)
     fig, ax = plt.subplots(figsize=paper_dims)
 
-    sns.barplot(ax=ax, data=sum_charges_df, x='Total charge ($)', y='Project', color='steelblue')
+    # overplot the total with the compute
+    #sns.barplot(ax=ax, data=sum_charges_df, x='Total charge ($)', y='Project', color='steelblue')
 
-    plt.xlabel('Total charge ($)')
-    plt.ylabel('Account')
+    bar1 = sns.barplot(ax=ax, data=sum_charges_df, x='Total charge ($)', y='Project', color='steelblue')
+    bar2 = sns.barplot(ax=ax, data=sum_charges_df, x='Compute charge ($)', y='Project', color='goldenrod')
+
+    # key
+    right_bar = mpatches.Patch(color='steelblue', label='Storage charge ($)')
+    left_bar = mpatches.Patch(color='goldenrod', label='Compute charge ($)')
+
+    plt.xlabel('Charge ($)')
+    plt.ylabel('Project')
     title_font = {'color': 'black', 'weight': 'bold', 'size': 14}
     plt.title(f'Picotte charges by account {start_date:%b %Y} to {end_date:%b %Y}', fontdict=title_font)
+
+    plt.legend(handles=[right_bar, left_bar], loc='lower right')
     plt.savefig(f'total_charges_plot_{date_strings[0]}-{date_strings[-1]}.png', dpi=300)
     plt.clf()
 
