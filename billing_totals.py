@@ -142,6 +142,8 @@ def main():
 
     sum_charges_df.columns = ['Project', 'Compute charge ($)',  'Storage charge ($)',  'Total charge ($)']
 
+    print(f'Total charges: {sum_charges_df["Total charge ($)"].sum():,.2f}')
+
     if DEBUG_P:
         print(f'DEBUG: main(): sum_charges_df.describe() =\n{sum_charges_df.describe()}')
         print()
