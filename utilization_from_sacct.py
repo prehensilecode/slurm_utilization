@@ -575,11 +575,17 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
     if DEBUG_P:
         print('DEBUG: usage_by_account(): ')
         print('DEBUG: usage_by_account(): describe()')
-        print(sacct_df.describe())
+        print(def_sacct_df.describe())
+        print(gpu_sacct_df.describe())
+        print(bm_sacct_df.describe())
         print('DEBUG: usage_by_account(): head(10)')
-        print(sacct_df.head(10))
+        print(def_sacct_df.describe())
+        print(gpu_sacct_df.describe())
+        print(bm_sacct_df.describe())
         print('DEBUG: usage_by_account(): tail(10)')
-        print(sacct_df.tail(10))
+        print(def_sacct_df.describe())
+        print(gpu_sacct_df.describe())
+        print(bm_sacct_df.describe())
         print(f'DEBUG: usage_by_account(): util_method = {util_method}')
         print()
 
@@ -686,6 +692,8 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
         usage_df = usage_df[['Account', 'NodeType', 'SU']].groupby(['Account', 'NodeType']).sum().reset_index()
 
         total_su_per_account = usage_df[['Account', 'SU']].groupby(['Account']).sum().reset_index()
+
+        print(f'Total SUs allocated: {total_su_per_account["SU"].sum():,.2f}')
 
         with open(f'total_su_per_account_{start_date_str}_{end_date_str}.csv', 'w') as f:
             total_su_per_account.to_csv(f)
