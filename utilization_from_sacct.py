@@ -36,6 +36,9 @@ import matplotlib.patches as mpatches
 
 DEBUG_P = True
 
+# Billing rate
+rate = 0.0123
+
 # conversion from Gibi
 KIBI = 1./(1024. * 1024.)
 MEBI = 1./1024.
@@ -571,6 +574,7 @@ def utilization(partition='def', sacct_df=None, uptime_secs=None, start_date=Non
 
 def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, uptime_secs=None, start_date=None, end_date=None, util_method=UtilMethod.BY_BILLING):
     global DEBUG_P
+    global rate
 
     if DEBUG_P:
         print('DEBUG: usage_by_account(): ')
@@ -693,6 +697,17 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
 
         total_su_per_account = usage_df[['Account', 'SU']].groupby(['Account']).sum().reset_index()
 
+        # make new df, and add column for $ charge
+        billing_df =  usage_df.copy(deep=True)
+        billing_df['Charge ($)'] = billing_df['SU'].multiply(rate)
+
+        if DEBUG_P:
+            print(f'DEBUG: usage_by_account(): billing_df.head(10) = {billing_df.head(10)}')
+
+        # write usage_df to CSV
+        billing_df.to_csv(f'billing_usage_by_account_per_nodetype_{start_date_str}_{end_date_str}.csv',
+                          index=False)
+
         print(f'Total SUs allocated: {total_su_per_account["SU"].sum():,.2f}')
 
         with open(f'total_su_per_account_{start_date_str}_{end_date_str}.csv', 'w') as f:
@@ -706,7 +721,7 @@ def usage_by_account(def_sacct_df=None, gpu_sacct_df=None, bm_sacct_df=None, upt
         usage_df.sort_values(by=['TotalSU'], ascending=False, inplace=True)
 
         # want only groups which used more than 48 SU
-        output_df = usage_df.query(f'TotalSU > 48').sort_values(by=['TotalSU'], ascending=False)
+        output_df = usage_df.query('TotalSU > 48').sort_values(by=['TotalSU'], ascending=False)
 
         # seaborn plot
         # 3 bars: bigmem, gpu, standard
