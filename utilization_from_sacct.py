@@ -173,11 +173,11 @@ def sreport_utilization(start_date=None, end_date=None):
 
     print()
     print(f'CLUSTER UTILIZATION from sreport based only on CPU usage ({start_date.year}-{start_date.month:02d} -- {orig_end_date.year}-{orig_end_date.month:02d} inclusive)')
-    print(f'Reported:     {sreport_dict["Reported"] / MINS_PER_DAY:.05e} CPU-days - equiv. to {sreport_dict["Reported"] / cpu_mins_per_day:5.2f} days')
-    print(f'Allocated:    {sreport_dict["Allocated"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Allocated"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Allocated"] / cpu_mins_per_day:5.2f} days')
-    print(f'Down:         {sreport_dict["Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Down"] / cpu_mins_per_day:5.2f} days')
-    print(f'Planned down: {sreport_dict["PLND Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["PLND Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["PLND Down"] / cpu_mins_per_day:5.2f} days')
-    print(f'Idle:         {sreport_dict["Idle"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Idle"] / cpu_mins_per_day:5.2f} days')
+    print(f'Reported:     {sreport_dict["Reported"] / MINS_PER_DAY:.05e} CPU-days - equiv. to {sreport_dict["Reported"] / cpu_mins_per_day:8.2f} days')
+    print(f'Allocated:    {sreport_dict["Allocated"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Allocated"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Allocated"] / cpu_mins_per_day:8.2f} days')
+    print(f'Down:         {sreport_dict["Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Down"] / cpu_mins_per_day:8.2f} days')
+    print(f'Planned down: {sreport_dict["PLND Down"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["PLND Down"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["PLND Down"] / cpu_mins_per_day:8.2f} days')
+    print(f'Idle:         {sreport_dict["Idle"] / MINS_PER_DAY:.05e} CPU-days ({sreport_dict["Idle"]/sreport_dict["Reported"]*100.:5.02f}%) - equiv. to {sreport_dict["Idle"] / cpu_mins_per_day:8.2f} days')
     print(f'Utilization:  {utilization:.02f} %')
 
     return utilization, reported_secs
