@@ -16,13 +16,14 @@ pandas = "*"
 numpy = "*"
 importmagic = "*"
 epc = "*"
-setuptools = ">=65.5.1"
+setuptools = ">=70.0.0"
+pipfile = "*"
 
 [dev-packages]
 importmagic = "*"
 epc = "*"
 python-lsp-server = "*"
-setuptools = ">=65.5.1"
+setuptools = ">=70.0.0"
 isort = "*"
 
 [requires]
