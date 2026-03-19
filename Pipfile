@@ -27,4 +27,4 @@ setuptools = ">=78.1.1"
 isort = "*"
 
 [requires]
-python_version = "3"
+python_version = "3.11"

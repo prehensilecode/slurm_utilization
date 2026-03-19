@@ -141,3 +141,6 @@ Data/Charges/
 
 # projectile
 .projectile
+
+# macOS
+.DS_Store
